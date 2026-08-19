@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Response;
+namespace Ngandu\Flexpay\Response;
 
-use Devscast\Flexpay\Data\Status;
+use Ngandu\Flexpay\Data\Status;
 
 /**
  * Class FlexpayResponse.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 abstract class FlexpayResponse
 {

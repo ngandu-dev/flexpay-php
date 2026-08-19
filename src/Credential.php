@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay;
+namespace Ngandu\Flexpay;
 
 use SensitiveParameter;
 use Webmozart\Assert\Assert;
@@ -10,7 +10,7 @@ use Webmozart\Assert\Assert;
 /**
  * Class Credential.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final readonly class Credential
 {

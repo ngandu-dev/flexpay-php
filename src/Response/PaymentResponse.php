@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Response;
+namespace Ngandu\Flexpay\Response;
 
-use Devscast\Flexpay\Data\Status;
+use Ngandu\Flexpay\Data\Status;
 use Symfony\Component\Serializer\Attribute\SerializedName;
 
 /**
  * Class PaymentResponse.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final class PaymentResponse extends FlexpayResponse
 {

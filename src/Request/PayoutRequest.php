@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Request;
+namespace Ngandu\Flexpay\Request;
 
-use Devscast\Flexpay\Data\Currency;
-use Devscast\Flexpay\Data\Type;
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Data\Type;
 use Webmozart\Assert\Assert;
 
 /**

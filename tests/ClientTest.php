@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Tests;
+namespace Ngandu\Flexpay\Tests;
 
-use Devscast\Flexpay\Client;
-use Devscast\Flexpay\Credential;
-use Devscast\Flexpay\Data\Currency;
-use Devscast\Flexpay\Data\Transaction;
-use Devscast\Flexpay\Data\Type;
-use Devscast\Flexpay\Exception\NetworkException;
-use Devscast\Flexpay\Request\CardRequest;
-use Devscast\Flexpay\Request\MobileRequest;
-use Devscast\Flexpay\Request\PayoutRequest;
-use Devscast\Flexpay\Response\CardResponse;
-use Devscast\Flexpay\Response\CheckResponse;
-use Devscast\Flexpay\Response\PaymentResponse;
-use Devscast\Flexpay\Response\PayoutResponse;
+use Ngandu\Flexpay\Client;
+use Ngandu\Flexpay\Credential;
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Data\Transaction;
+use Ngandu\Flexpay\Data\Type;
+use Ngandu\Flexpay\Exception\NetworkException;
+use Ngandu\Flexpay\Request\CardRequest;
+use Ngandu\Flexpay\Request\MobileRequest;
+use Ngandu\Flexpay\Request\PayoutRequest;
+use Ngandu\Flexpay\Response\CardResponse;
+use Ngandu\Flexpay\Response\CheckResponse;
+use Ngandu\Flexpay\Response\PaymentResponse;
+use Ngandu\Flexpay\Response\PayoutResponse;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -25,7 +25,7 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 /**
  * Class ClientTest.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final class ClientTest extends TestCase
 {

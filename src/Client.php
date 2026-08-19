@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay;
+namespace Ngandu\Flexpay;
 
-use Devscast\Flexpay\Exception\NetworkException;
-use Devscast\Flexpay\Request\CardRequest;
-use Devscast\Flexpay\Request\MobileRequest;
-use Devscast\Flexpay\Request\PayoutRequest;
-use Devscast\Flexpay\Request\Request;
-use Devscast\Flexpay\Response\CardResponse;
-use Devscast\Flexpay\Response\CheckResponse;
-use Devscast\Flexpay\Response\FlexpayResponse;
-use Devscast\Flexpay\Response\PaymentResponse;
-use Devscast\Flexpay\Response\PayoutResponse;
+use Ngandu\Flexpay\Exception\NetworkException;
+use Ngandu\Flexpay\Request\CardRequest;
+use Ngandu\Flexpay\Request\MobileRequest;
+use Ngandu\Flexpay\Request\PayoutRequest;
+use Ngandu\Flexpay\Request\Request;
+use Ngandu\Flexpay\Response\CardResponse;
+use Ngandu\Flexpay\Response\CheckResponse;
+use Ngandu\Flexpay\Response\FlexpayResponse;
+use Ngandu\Flexpay\Response\PaymentResponse;
+use Ngandu\Flexpay\Response\PayoutResponse;
 use RuntimeException;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
@@ -29,7 +29,7 @@ use Throwable;
 /**
  * Class Client.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final readonly class Client
 {

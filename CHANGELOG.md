@@ -1,9 +1,21 @@
-# CHANGELOG
+# Changelog
 
-This changelog references the relevant changes (bug and security fixes) done
+All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
+
+## 3.0.0
+
+### Changed
+
+- Moved the Composer package to `ngandu-dev/flexpay`.
+- Adopted the `Ngandu\\Flexpay` PHP namespace.
+- Standardized project documentation, quality commands, and continuous integration.
+
+### Migration
+
+- Require `ngandu-dev/flexpay` and update application imports to begin with `Ngandu\\Flexpay`.
 
 
-### 2.0.x
+## 2.0.x
 - Rename: vpos to card 
 - Fixed: vpos urls for production and test environments in `Environment`
 - Added: `isSuccessful` to `Transaction` class
@@ -15,6 +27,6 @@ This changelog references the relevant changes (bug and security fixes) done
 - Added: Support for `check`, `vpos`, `mobile` urls in `Environment`,
 - Removed: `getPaymentBaseUrl` method in `Environment`
 
-### 1.0.x
+## 1.0.x
 - Fixed: allow `$message` to be an empty string in `PaymentResponse`
 - Initial release

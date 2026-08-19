@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "83dbb6cd5e833029f8d3bafa4bb4c932",
+    "content-hash": "ccfd8f759f1c3f1e7d9e570f63392798",
     "packages": [
         {
             "name": "psr/container",
@@ -3346,12 +3346,12 @@
             "version": "13.1.3",
             "source": {
                 "type": "git",
-                "url": "https://github.com/easy-coding-standard/ecs.git",
+                "url": "https://github.com/ecsphp/ecs.git",
                 "reference": "d894d088d7ebb9326f9eed28bf251481c813b89f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/easy-coding-standard/ecs/zipball/d894d088d7ebb9326f9eed28bf251481c813b89f",
+                "url": "https://api.github.com/repos/ecsphp/ecs/zipball/d894d088d7ebb9326f9eed28bf251481c813b89f",
                 "reference": "d894d088d7ebb9326f9eed28bf251481c813b89f",
                 "shasum": ""
             },

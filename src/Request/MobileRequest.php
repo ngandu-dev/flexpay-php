@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Request;
+namespace Ngandu\Flexpay\Request;
 
-use Devscast\Flexpay\Data\Currency;
-use Devscast\Flexpay\Data\Type;
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Data\Type;
 use Override;
 use Webmozart\Assert\Assert;
 
 /**
  * Class MobileRequest.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final class MobileRequest extends Request
 {

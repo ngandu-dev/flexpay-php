@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Data;
+namespace Ngandu\Flexpay\Data;
 
 /**
  * Class Status.
  *
  * Ce code donne le statut de la requête envoyée
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 enum Status: int
 {

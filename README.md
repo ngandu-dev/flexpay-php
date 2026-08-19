@@ -1,19 +1,30 @@
 # Flexpay PHP
 
-![Lint](https://github.com/devscast/flexpay/actions/workflows/lint.yaml/badge.svg)
-![Test](https://github.com/devscast/flexpay/actions/workflows/test.yaml/badge.svg)
-[![Latest Stable Version](https://poser.pugx.org/devscast/flexpay/version)](https://packagist.org/packages/devscast/flexpay)
-[![Total Downloads](https://poser.pugx.org/devscast/flexpay/downloads)](https://packagist.org/packages/devscast/flexpay)
-[![License](https://poser.pugx.org/devscast/flexpay/license)](https://packagist.org/packages/devscast/flexpay)
+[![Latest Stable Version](https://poser.pugx.org/ngandu-dev/flexpay/version)](https://packagist.org/packages/ngandu-dev/flexpay)
+[![Total Downloads](https://poser.pugx.org/ngandu-dev/flexpay/downloads)](https://packagist.org/packages/ngandu-dev/flexpay)
+[![Quality](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml)
+[![Tests](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml)
+[![License](https://poser.pugx.org/ngandu-dev/flexpay/license)](https://packagist.org/packages/ngandu-dev/flexpay)
 
 For privacy reasons, Flexpay original documentation cannot be shared without written permission, for more information about credentials
 and implementation details, please reach them at flexpay.cd
+
+## Features
+
+- Mobile money and card payment requests
+- Payout requests
+- Transaction status and callback handling
+
+## Requirements
+
+- PHP 8.4 or later
+- Composer 2
 
 ## Installation
 You can use the PHP client by installing the Composer package and adding it to your application’s dependencies:
 
 ```bash
-composer require devscast/flexpay
+composer require ngandu-dev/flexpay
 ```
 ## Usage 
 
@@ -25,9 +36,9 @@ You will receive a Merchant Form to complete in order to provide your business d
 Then use these credentials to authenticate your client
 
 ```php
-use Devscast\Flexpay\Client as Flexpay;
-use Devscast\Flexpay\Credential;
-use Devscast\Flexpay\Environment;
+use Ngandu\Flexpay\Client as Flexpay;
+use Ngandu\Flexpay\Credential;
+use Ngandu\Flexpay\Environment;
 
 $flexpay = new Flexpay(
     new Credential('token', 'merchant_code'),
@@ -38,9 +49,9 @@ $flexpay = new Flexpay(
 ### Create a Payment Request
 
 ```php
-use Devscast\Flexpay\Data\Currency;
-use Devscast\Flexpay\Request\CardRequest;
-use Devscast\Flexpay\Request\MobileRequest;
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Request\CardRequest;
+use Ngandu\Flexpay\Request\MobileRequest;
 
 $mobile = new MobileRequest(
     amount: 10, // 10 USD
@@ -87,7 +98,7 @@ you can use the following code to handle the callback by providing incoming data
 ```php
 $state = $flexpay->handleCallback($_POST);
 $state->isSuccessful(); // true or false
-````
+```
 
 ### Check Transaction state
 You don't trust webhook ? you can always check the transaction state by providing the order number.
@@ -96,3 +107,29 @@ You don't trust webhook ? you can always check the transaction state by providin
 $state = $flexpay->check($payment->orderNumber);
 $state->isSuccessful(); // true or false
 ```
+
+## Development
+
+```bash
+composer install
+composer format
+composer quality
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Contributors
+
+<a href="https://github.com/ngandu-dev/flexpay-php/graphs/contributors" title="Show all contributors">
+  <img src="https://contrib.rocks/image?repo=ngandu-dev/flexpay-php" alt="Contributors" />
+</a>

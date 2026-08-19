@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Data;
+namespace Ngandu\Flexpay\Data;
 
 enum Type: int
 {

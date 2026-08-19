@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Response;
+namespace Ngandu\Flexpay\Response;
 
-use Devscast\Flexpay\Data\Status;
+use Ngandu\Flexpay\Data\Status;
 
 final class PayoutResponse extends FlexpayResponse
 {

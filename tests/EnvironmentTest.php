@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Tests;
+namespace Ngandu\Flexpay\Tests;
 
-use Devscast\Flexpay\Environment;
+use Ngandu\Flexpay\Environment;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Class EnvironmentTest.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 final class EnvironmentTest extends TestCase
 {

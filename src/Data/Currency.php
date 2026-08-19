@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Data;
+namespace Ngandu\Flexpay\Data;
 
 /**
  * Class Currency.
  *
  * La devise de la transaction.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 enum Currency: string
 {

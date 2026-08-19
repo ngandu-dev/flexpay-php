@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Devscast\Flexpay\Request;
+namespace Ngandu\Flexpay\Request;
 
-use Devscast\Flexpay\Credential;
-use Devscast\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Credential;
+use Ngandu\Flexpay\Data\Currency;
 use Webmozart\Assert\Assert;
 
 /**
  * Class Request.
  *
- * @author bernard-ng <bernard@devscast.tech>
+ * @author bernard-ng <bernard@ngandu.dev>
  */
 abstract class Request
 {
