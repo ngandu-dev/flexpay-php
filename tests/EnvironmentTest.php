@@ -79,5 +79,9 @@ final class EnvironmentTest extends TestCase
             'https://beta-backend.flexpay.cd/api/rest/v1/check/123456',
             $this->dev->getCheckStatusUrl('123456')
         );
+        $this->assertEquals(
+            'https://beta-backend.flexpay.cd/api/rest/v1/check/order%2Fwith%20spaces',
+            $this->dev->getCheckStatusUrl('order/with spaces')
+        );
     }
 }

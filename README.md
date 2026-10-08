@@ -69,7 +69,10 @@ $card = new CardRequest(
     description: "your_transaction_description",
     callbackUrl: "your_website_webhook_url",
     homeUrl: "your_website_home_url",
-)
+    approveUrl: "your_website_approval_url",
+    cancelUrl: "your_website_cancellation_url",
+    declineUrl: "your_website_decline_url",
+);
 ```
 
 > **Note**: we highly recommend your `callbacks` urls to be unique for each transaction. 

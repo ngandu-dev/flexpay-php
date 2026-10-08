@@ -32,7 +32,7 @@ enum Environment: string
     public function getCheckStatusUrl(string $orderNumber): string
     {
         return match ($this) {
-            self::LIVE, self::SANDBOX => sprintf('%s/check/%s', $this->getBaseUrl(), $orderNumber),
+            self::LIVE, self::SANDBOX => sprintf('%s/check/%s', $this->getBaseUrl(), rawurlencode($orderNumber)),
         };
     }
 

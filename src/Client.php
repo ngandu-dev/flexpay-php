@@ -22,9 +22,9 @@ use Symfony\Component\PropertyInfo\Extractor\ConstructorExtractor;
 use Symfony\Component\Serializer\Normalizer\BackedEnumNormalizer;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
+use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Throwable;
 
 /**
  * Class Client.
@@ -40,6 +40,7 @@ final readonly class Client
     public function __construct(
         public Credential $credential,
         public Environment $environment = Environment::SANDBOX,
+        ?HttpClientInterface $http = null,
     ) {
         $this->serializer = new Serializer(
             normalizers: [
@@ -49,14 +50,12 @@ final readonly class Client
         );
 
         $this->http = new RetryableHttpClient(
-            client: HttpClient::create(
-                defaultOptions: [
-                    'auth_bearer' => $this->credential->token,
-                    'headers' => [
-                        'Accept' => 'application/json',
-                    ],
-                ]
-            ),
+            client: ($http ?? HttpClient::create())->withOptions([
+                'auth_bearer' => $this->credential->token,
+                'headers' => [
+                    'Accept' => 'application/json',
+                ],
+            ]),
             strategy: new GenericRetryStrategy(delayMs: 500),
             maxRetries: 3
         );
@@ -72,19 +71,14 @@ final readonly class Client
     {
         $request->setCredential($this->credential);
 
-        try {
-            /** @var PaymentResponse $response */
-            $response = $this->getMappedData(
-                type: PaymentResponse::class,
-                data: $this->http->request('POST', $this->environment->getMobilePaymentUrl(), [
-                    'json' => $request->getPayload(),
-                ])->toArray()
-            );
-
-            return $response;
-        } catch (Throwable $throwable) {
-            $this->createExceptionFromResponse($throwable);
-        }
+        return $this->send(
+            method: 'POST',
+            url: $this->environment->getMobilePaymentUrl(),
+            type: PaymentResponse::class,
+            options: [
+                'json' => $request->getPayload(),
+            ]
+        );
     }
 
     /**
@@ -100,19 +94,14 @@ final readonly class Client
     {
         $request->setCredential($this->credential);
 
-        try {
-            /** @var CardResponse $response */
-            $response = $this->getMappedData(
-                type: CardResponse::class,
-                data: $this->http->request('POST', $this->environment->getCardPaymentUrl(), [
-                    'json' => $request->getPayload(),
-                ])->toArray()
-            );
-
-            return $response;
-        } catch (Throwable $throwable) {
-            $this->createExceptionFromResponse($throwable);
-        }
+        return $this->send(
+            method: 'POST',
+            url: $this->environment->getCardPaymentUrl(),
+            type: CardResponse::class,
+            options: [
+                'json' => $request->getPayload(),
+            ]
+        );
     }
 
     /**
@@ -137,19 +126,11 @@ final readonly class Client
      */
     public function check(string $orderNumber): CheckResponse
     {
-        try {
-            /** @var CheckResponse $response */
-            $response = $this->getMappedData(
-                type: CheckResponse::class,
-                data: $this->http
-                    ->request('GET', $this->environment->getCheckStatusUrl($orderNumber))
-                    ->toArray()
-            );
-
-            return $response;
-        } catch (Throwable $throwable) {
-            $this->createExceptionFromResponse($throwable);
-        }
+        return $this->send(
+            method: 'GET',
+            url: $this->environment->getCheckStatusUrl($orderNumber),
+            type: CheckResponse::class
+        );
     }
 
     /**
@@ -163,19 +144,14 @@ final readonly class Client
     {
         $request->setCredential($this->credential);
 
-        try {
-            /** @var PayoutResponse $response */
-            $response = $this->getMappedData(
-                type: PayoutResponse::class,
-                data: $this->http->request('POST', $this->environment->getPayoutUrl(), [
-                    'json' => $request->getPayload(),
-                ])->toArray()
-            );
-
-            return $response;
-        } catch (Throwable $throwable) {
-            $this->createExceptionFromResponse($throwable);
-        }
+        return $this->send(
+            method: 'POST',
+            url: $this->environment->getPayoutUrl(),
+            type: PayoutResponse::class,
+            options: [
+                'json' => $request->getPayload(),
+            ]
+        );
     }
 
     /**
@@ -190,36 +166,54 @@ final readonly class Client
     }
 
     /**
-     * @psalm-param class-string<FlexpayResponse> $type
+     * @template T of FlexpayResponse
+     * @param class-string<T> $type
+     * @param array<string, mixed> $options
+     * @return T
+     * @throws NetworkException
+     */
+    private function send(string $method, string $url, string $type, array $options = []): FlexpayResponse
+    {
+        try {
+            return $this->getMappedData(
+                type: $type,
+                data: $this->http->request($method, $url, $options)->toArray()
+            );
+        } catch (HttpExceptionInterface $exception) {
+            throw $this->createExceptionFromResponse($exception);
+        } catch (HttpClientExceptionInterface $exception) {
+            throw new NetworkException($exception->getMessage(), previous: $exception);
+        }
+    }
+
+    /**
+     * @template T of FlexpayResponse
+     * @param class-string<T> $type
+     * @return T
      */
     private function getMappedData(string $type, array $data): FlexpayResponse
     {
-        /** @var FlexpayResponse $mapped */
+        /** @var T $mapped */
         $mapped = $this->serializer->denormalize($data, $type);
 
         return $mapped;
     }
 
-    /**
-     * @throws NetworkException
-     */
-    private function createExceptionFromResponse(Throwable $exception): never
+    private function createExceptionFromResponse(HttpExceptionInterface $exception): NetworkException
     {
-        if ($exception instanceof HttpExceptionInterface) {
-            try {
-                $response = $exception->getResponse();
-                $body = $response->toArray(throw: false);
+        $response = $exception->getResponse();
 
-                throw NetworkException::create(
-                    message: $body['message'] ?? '',
-                    type: $body['error'],
-                    status: $response->getStatusCode()
-                );
-            } catch (Throwable $exception) {
-                throw new NetworkException($exception->getMessage());
-            }
-        } else {
-            throw new NetworkException($exception->getMessage());
+        try {
+            $body = $response->toArray(throw: false);
+        } catch (HttpClientExceptionInterface) {
+            $body = [];
         }
+
+        return NetworkException::create(
+            message: is_string($body['message'] ?? null) ? $body['message'] : '',
+            type: is_string($body['error'] ?? null) ? $body['error'] : null,
+            status: $response->getStatusCode(),
+            previous: $exception
+        );
     }
 }

@@ -9,7 +9,10 @@ use Ngandu\Flexpay\Credential;
 use Ngandu\Flexpay\Data\Currency;
 use Ngandu\Flexpay\Data\Transaction;
 use Ngandu\Flexpay\Data\Type;
+use Ngandu\Flexpay\Exception\AccountException;
+use Ngandu\Flexpay\Exception\ClientException;
 use Ngandu\Flexpay\Exception\NetworkException;
+use Ngandu\Flexpay\Exception\ServerException;
 use Ngandu\Flexpay\Request\CardRequest;
 use Ngandu\Flexpay\Request\MobileRequest;
 use Ngandu\Flexpay\Request\PayoutRequest;
@@ -18,9 +21,10 @@ use Ngandu\Flexpay\Response\CheckResponse;
 use Ngandu\Flexpay\Response\PaymentResponse;
 use Ngandu\Flexpay\Response\PayoutResponse;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
+use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 
 /**
  * Class ClientTest.
@@ -127,42 +131,86 @@ final class ClientTest extends TestCase
         $this->assertEquals('UBGC8s9L3VBm243815877848', $response->orderNumber);
     }
 
+    public function testHttpErrorsKeepTheirClassificationAndContext(): void
+    {
+        $cases = [
+            401 => AccountException::class,
+            422 => ClientException::class,
+            501 => ServerException::class,
+        ];
+
+        foreach ($cases as $status => $exceptionClass) {
+            $response = new MockResponse(
+                json_encode([
+                    'message' => 'Request failed',
+                    'error' => 'api_error',
+                ], JSON_THROW_ON_ERROR),
+                [
+                    'http_code' => $status,
+                    'response_headers' => ['content-type: application/json'],
+                ]
+            );
+
+            try {
+                $this->getFlexpay($response)->check('order-number');
+                $this->fail(sprintf('Expected %s to be thrown', $exceptionClass));
+            } catch (NetworkException $exception) {
+                $this->assertInstanceOf($exceptionClass, $exception);
+                $this->assertSame($status, $exception->status);
+                $this->assertSame('api_error', $exception->type);
+                $this->assertSame(sprintf('Request failed (HTTP %d/api_error)', $status), $exception->getMessage());
+                $this->assertInstanceOf(HttpExceptionInterface::class, $exception->getPrevious());
+            }
+        }
+    }
+
+    public function testHttpErrorWithoutApiDetailsKeepsItsStatus(): void
+    {
+        $response = new MockResponse('{}', [
+            'http_code' => 404,
+            'response_headers' => ['content-type: application/json'],
+        ]);
+
+        try {
+            $this->getFlexpay($response)->check('missing-order');
+            $this->fail('Expected a ClientException to be thrown');
+        } catch (ClientException $clientException) {
+            $this->assertSame(404, $clientException->status);
+            $this->assertNull($clientException->type);
+            $this->assertSame('No message was provided (HTTP 404)', $clientException->getMessage());
+        }
+    }
+
+    public function testTransportErrorsAreRecastWithoutLosingTheCause(): void
+    {
+        $transportError = new TransportException('Connection failed');
+        $flexpay = $this->getFlexpay(static fn () => throw $transportError);
+
+        try {
+            $flexpay->mobile(new MobileRequest(
+                amount: 10,
+                reference: 'ref',
+                currency: Currency::USD,
+                callbackUrl: 'http://localhost:8000/callback',
+                phone: '243123456789',
+            ));
+            $this->fail('Expected a NetworkException to be thrown');
+        } catch (NetworkException $networkException) {
+            $this->assertSame('Connection failed', $networkException->getMessage());
+            $this->assertSame($transportError, $networkException->getPrevious());
+        }
+    }
+
     private function getFlexpay(callable|MockResponse $mock): Client
     {
-        $flexpay = new Client(new Credential('token', 'ZONDO'));
-        $this->setValue($flexpay, 'http', new MockHttpClient($mock));
-
-        /** @var Client $flexpay */
-        return $flexpay;
+        return new Client(
+            credential: new Credential('token', 'ZONDO'),
+            http: new MockHttpClient($mock)
+        );
     }
 
     private function getResponse(string $file): MockResponse
     {
         return new MockResponse((string) file_get_contents(__DIR__ . '/fixtures/' . $file));
-    }
-
-    private function setValue(object &$object, string $propertyName, mixed $value): void
-    {
-        $reflectionClass = new ReflectionClass($object);
-        $property = $reflectionClass->getProperty($propertyName);
-
-        if ($property->isReadOnly()) {
-            $mutable = $reflectionClass->newInstanceWithoutConstructor();
-
-            foreach ($reflectionClass->getProperties() as $classProperty) {
-                if ($classProperty->name === $propertyName) {
-                    continue;
-                }
-
-                if ($classProperty->isInitialized($object)) {
-                    $classProperty->setValue($mutable, $classProperty->getValue($object));
-                }
-            }
-
-            $object = $mutable;
-            $property = $reflectionClass->getProperty($propertyName);
-        }
-
-        $property->setValue($object, $value);
     }
 }
