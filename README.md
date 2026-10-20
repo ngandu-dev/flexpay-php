@@ -14,6 +14,7 @@ and implementation details, please reach them at flexpay.cd
 - Mobile money and card payment requests
 - Payout requests
 - Transaction status and callback handling
+- Optional custom API and card base URLs for local integration testing
 
 ## Requirements
 
@@ -45,6 +46,26 @@ $flexpay = new Flexpay(
     Environment::SANDBOX // use Environment::LIVE for production
 );
 ```
+
+### Local simulator or custom endpoints
+
+Set the optional named constructor arguments to versioned endpoint prefixes:
+
+```php
+$flexpay = new Flexpay(
+    credential: new Credential('test-token', 'TESTMERCHANT'),
+    apiBaseUrl: 'http://localhost:8080/api/rest/v1',
+    cardBaseUrl: 'http://localhost:8080/v1.1',
+);
+```
+
+`apiBaseUrl` is shared by mobile payments, payouts, and status checks; the client appends
+`/paymentService`, `/merchantPayOutService`, or `/check/{orderNumber}`. `cardBaseUrl` gets `/pay`
+appended. Include the version path in each prefix and omit the final service path.
+Trailing slashes are removed. Each `null` or omitted option keeps the selected sandbox/live default.
+Existing constructor calls, including the optional third HTTP-client argument, remain compatible.
+Overrides must be absolute HTTP(S) URLs without credentials, query strings, or fragments; invalid
+values throw `InvalidArgumentException` during construction. Authentication and callbacks are unchanged.
 
 ### Create a Payment Request
 

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Ngandu\Flexpay\Tests;
 
+use InvalidArgumentException;
 use Ngandu\Flexpay\Client;
 use Ngandu\Flexpay\Credential;
 use Ngandu\Flexpay\Data\Currency;
 use Ngandu\Flexpay\Data\Transaction;
 use Ngandu\Flexpay\Data\Type;
+use Ngandu\Flexpay\Environment;
 use Ngandu\Flexpay\Exception\AccountException;
 use Ngandu\Flexpay\Exception\ClientException;
 use Ngandu\Flexpay\Exception\NetworkException;
@@ -198,6 +200,61 @@ final class ClientTest extends TestCase
         } catch (NetworkException $networkException) {
             $this->assertSame('Connection failed', $networkException->getMessage());
             $this->assertSame($transportError, $networkException->getPrevious());
+        }
+    }
+
+    public function testCustomBaseUrlsAndIndependentEnvironmentDefaults(): void
+    {
+        $cases = [
+            [Environment::SANDBOX, null, null],
+            [Environment::LIVE, null, null],
+            [Environment::LIVE, ' http://localhost:8080/proxy/api/rest/v1/// ', 'http://[::1]:8080/proxy/v1.1/'],
+            [Environment::SANDBOX, 'http://localhost:8080/api/rest/v1', null],
+            [Environment::LIVE, null, 'http://localhost:8080/v1.1'],
+        ];
+        foreach ($cases as [$environment, $apiBaseUrl, $cardBaseUrl]) {
+            $api = $apiBaseUrl === null ? null : rtrim(trim($apiBaseUrl), '/');
+            $card = $cardBaseUrl === null ? null : rtrim(trim($cardBaseUrl), '/');
+            $order = 'order/with spaces?x=#';
+            $expected = [
+                ['POST', $api === null ? $environment->getMobilePaymentUrl() : $api . '/paymentService', 'mobile_success.json'],
+                ['POST', $api === null ? $environment->getPayoutUrl() : $api . '/merchantPayOutService', 'payout_success.json'],
+                ['GET', $api === null ? $environment->getCheckStatusUrl($order) : $api . '/check/order%2Fwith%20spaces%3Fx%3D%23', 'check_success.json'],
+                ['POST', $card === null ? $environment->getCardPaymentUrl() : $card . '/pay', 'card_success.json'],
+            ];
+            $index = 0;
+            $http = new MockHttpClient(function (string $method, string $url) use ($expected, &$index): MockResponse {
+                [$expectedMethod, $expectedUrl, $fixture] = $expected[$index++];
+                $this->assertSame($expectedMethod, $method);
+                $this->assertSame($expectedUrl, $url);
+
+                return $this->getResponse($fixture);
+            });
+            $client = new Client(new Credential('token', 'ZONDO'), $environment, $http, $apiBaseUrl, $cardBaseUrl);
+            $client->mobile(new MobileRequest(10, 'local', Currency::USD, 'http://localhost/callback', '243810000001'));
+            $client->payout(new PayoutRequest(10, 'local', Currency::USD, 'http://localhost/callback', '243810000001'));
+            $client->check($order);
+            $client->card(new CardRequest(10, 'local', Currency::USD, 'Local checkout', 'http://localhost/callback', 'http://localhost/approve', 'http://localhost/cancel', 'http://localhost/decline', 'http://localhost/home'));
+            $this->assertSame(4, $index);
+        }
+    }
+
+    public function testInvalidBaseUrlsAreRejectedBeforeRequests(): void
+    {
+        $values = ['', ' ', '/relative', 'localhost:8080', 'http:localhost', 'ftp://localhost/api',
+            'http://localhost:invalid', 'http://user:password@localhost/api', 'http://localhost/api?token=1',
+            'http://localhost/api#fragment', 'http://localhost/api?', 'http://localhost/api#', 'http://localhost/\\path'];
+        foreach ($values as $value) {
+            foreach (['apiBaseUrl', 'cardBaseUrl'] as $option) {
+                try {
+                    new Client(new Credential('token', 'ZONDO'), ...[
+                        $option => $value,
+                    ]);
+                    $this->fail(sprintf('Expected %s=%s to be rejected', $option, $value));
+                } catch (InvalidArgumentException $invalidArgumentException) {
+                    $this->assertStringContainsString('Base URLs', $invalidArgumentException->getMessage());
+                }
+            }
         }
     }
 

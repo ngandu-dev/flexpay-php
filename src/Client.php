@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ngandu\Flexpay;
 
+use InvalidArgumentException;
 use Ngandu\Flexpay\Exception\NetworkException;
 use Ngandu\Flexpay\Request\CardRequest;
 use Ngandu\Flexpay\Request\MobileRequest;
@@ -37,11 +38,32 @@ final readonly class Client
 
     private Serializer $serializer;
 
+    private string $mobilePaymentUrl;
+
+    private string $payoutUrl;
+
+    private string $checkStatusUrl;
+
+    private string $cardPaymentUrl;
+
     public function __construct(
         public Credential $credential,
         public Environment $environment = Environment::SANDBOX,
         ?HttpClientInterface $http = null,
+        ?string $apiBaseUrl = null,
+        ?string $cardBaseUrl = null,
     ) {
+        $apiBaseUrl = $apiBaseUrl === null ? null : $this->normalizeBaseUrl($apiBaseUrl);
+        $cardBaseUrl = $cardBaseUrl === null ? null : $this->normalizeBaseUrl($cardBaseUrl);
+        $this->mobilePaymentUrl = $apiBaseUrl === null
+            ? $environment->getMobilePaymentUrl() : $apiBaseUrl . '/paymentService';
+        $this->payoutUrl = $apiBaseUrl === null
+            ? $environment->getPayoutUrl() : $apiBaseUrl . '/merchantPayOutService';
+        $this->checkStatusUrl = $apiBaseUrl === null
+            ? $environment->getCheckStatusUrl('') : $apiBaseUrl . '/check/';
+        $this->cardPaymentUrl = $cardBaseUrl === null
+            ? $environment->getCardPaymentUrl() : $cardBaseUrl . '/pay';
+
         $this->serializer = new Serializer(
             normalizers: [
                 new BackedEnumNormalizer(),
@@ -73,7 +95,7 @@ final readonly class Client
 
         return $this->send(
             method: 'POST',
-            url: $this->environment->getMobilePaymentUrl(),
+            url: $this->mobilePaymentUrl,
             type: PaymentResponse::class,
             options: [
                 'json' => $request->getPayload(),
@@ -96,7 +118,7 @@ final readonly class Client
 
         return $this->send(
             method: 'POST',
-            url: $this->environment->getCardPaymentUrl(),
+            url: $this->cardPaymentUrl,
             type: CardResponse::class,
             options: [
                 'json' => $request->getPayload(),
@@ -128,7 +150,7 @@ final readonly class Client
     {
         return $this->send(
             method: 'GET',
-            url: $this->environment->getCheckStatusUrl($orderNumber),
+            url: $this->checkStatusUrl . rawurlencode($orderNumber),
             type: CheckResponse::class
         );
     }
@@ -146,7 +168,7 @@ final readonly class Client
 
         return $this->send(
             method: 'POST',
-            url: $this->environment->getPayoutUrl(),
+            url: $this->payoutUrl,
             type: PayoutResponse::class,
             options: [
                 'json' => $request->getPayload(),
@@ -197,6 +219,26 @@ final readonly class Client
         $mapped = $this->serializer->denormalize($data, $type);
 
         return $mapped;
+    }
+
+    private function normalizeBaseUrl(string $value): string
+    {
+        $baseUrl = rtrim(trim($value), '/');
+        $parts = parse_url($baseUrl);
+        if (
+            filter_var($baseUrl, FILTER_VALIDATE_URL) === false
+            || $parts === false
+            || ! in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
+            || isset($parts['user'])
+            || isset($parts['pass'])
+            || array_key_exists('query', $parts)
+            || array_key_exists('fragment', $parts)
+            || str_contains($baseUrl, '\\')
+        ) {
+            throw new InvalidArgumentException('Base URLs must be absolute HTTP(S) URLs without credentials, query, or fragment');
+        }
+
+        return $baseUrl;
     }
 
     private function createExceptionFromResponse(HttpExceptionInterface $exception): NetworkException

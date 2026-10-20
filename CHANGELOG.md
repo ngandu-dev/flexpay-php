@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
+## 3.0.3 - 2026-10-20
+
+### Added
+
+- Optional `apiBaseUrl` and `cardBaseUrl` client constructor arguments for local simulators and custom versioned endpoints. Existing environment defaults and HTTP-client injection remain compatible.
+
 ## 3.0.1
 
 ### Fixed
