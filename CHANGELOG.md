@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
+## 3.0.4 - 2026-10-21
+
+### Changed
+
+- Create GitHub releases with generated notes when stable tags are pushed. Leave prereleases to manual publishing.
+
 ## 3.0.3 - 2026-10-20
 
 ### Added
