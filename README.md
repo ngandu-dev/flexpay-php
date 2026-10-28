@@ -132,6 +132,18 @@ $state = $flexpay->check($payment->orderNumber);
 $state->isSuccessful(); // true or false
 ```
 
+## Response errors
+
+Malformed, empty, or non-JSON responses throw a `Ngandu\Flexpay\Exception\NetworkException`
+with `type` set to `invalid_response`. The exception includes the HTTP `status`,
+Content-Type in its message, and the original exception as its cause. HTTP errors
+retain their classification, such as `ServerException` for HTTP 500.
+
+An invalid response means the package could not read the payment result. It does
+not establish whether the payment was accepted. Reconcile the payment state
+before submitting it again. Response bodies are not included in the diagnostic
+message.
+
 ## Development
 
 ```bash

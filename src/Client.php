@@ -23,9 +23,11 @@ use Symfony\Component\PropertyInfo\Extractor\ConstructorExtractor;
 use Symfony\Component\Serializer\Normalizer\BackedEnumNormalizer;
 use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 use Symfony\Component\Serializer\Serializer;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
  * Class Client.
@@ -199,13 +201,34 @@ final readonly class Client
         try {
             return $this->getMappedData(
                 type: $type,
-                data: $this->http->request($method, $url, $options)->toArray()
+                data: $this->decodeResponse($this->http->request($method, $url, $options))
             );
         } catch (HttpExceptionInterface $exception) {
             throw $this->createExceptionFromResponse($exception);
         } catch (HttpClientExceptionInterface $exception) {
             throw new NetworkException($exception->getMessage(), previous: $exception);
         }
+    }
+
+    private function decodeResponse(ResponseInterface $response): array
+    {
+        try {
+            return $response->toArray();
+        } catch (DecodingExceptionInterface $decodingException) {
+            throw $this->createInvalidResponseException($response, $decodingException);
+        }
+    }
+
+    private function createInvalidResponseException(ResponseInterface $response, HttpClientExceptionInterface $previous): NetworkException
+    {
+        $contentType = $response->getHeaders(throw: false)['content-type'][0] ?? 'unknown';
+
+        return NetworkException::create(
+            message: sprintf('Flexpay returned an invalid JSON response (Content-Type: %s)', $contentType),
+            type: 'invalid_response',
+            status: $response->getStatusCode(),
+            previous: $previous
+        );
     }
 
     /**
@@ -247,6 +270,8 @@ final readonly class Client
 
         try {
             $body = $response->toArray(throw: false);
+        } catch (DecodingExceptionInterface) {
+            return $this->createInvalidResponseException($response, $exception);
         } catch (HttpClientExceptionInterface) {
             $body = [];
         }

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
+## 3.0.5 - 2026-10-28
+
+### Fixed
+
+- Report malformed, empty, and non-JSON API responses as `NetworkException` with type `invalid_response`, HTTP status, Content-Type, and the original exception. Preserve HTTP error classification without including response bodies in the diagnostic message.
+
 ## 3.0.4 - 2026-10-21
 
 ### Changed

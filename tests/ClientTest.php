@@ -26,6 +26,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 
 /**
@@ -180,6 +181,55 @@ final class ClientTest extends TestCase
             $this->assertSame(404, $clientException->status);
             $this->assertNull($clientException->type);
             $this->assertSame('No message was provided (HTTP 404)', $clientException->getMessage());
+        }
+    }
+
+    public function testInvalidCardResponsesKeepTheirStatusAndCause(): void
+    {
+        $cases = [
+            [200, '<html>Internal Server Error</html>', 'text/html', NetworkException::class],
+            [200, '{"code":', 'application/json', NetworkException::class],
+            [204, '', null, NetworkException::class],
+            [200, 'null', 'application/json', NetworkException::class],
+            [401, '<html>Unauthorized</html>', 'text/html', AccountException::class],
+            [422, 'Invalid request', 'text/plain', ClientException::class],
+            [500, '<html>Internal Server Error</html>', 'text/html; charset=UTF-8', ServerException::class],
+        ];
+
+        foreach ($cases as [$status, $body, $contentType, $exceptionClass]) {
+            $requests = 0;
+            $http = new MockHttpClient(static function (string $method, string $url) use ($status, $body, $contentType, &$requests): MockResponse {
+                ++$requests;
+                self::assertSame('POST', $method);
+                self::assertSame('https://cardpayment.flexpay.cd/v1.1/pay', $url);
+
+                return new MockResponse($body, [
+                    'http_code' => $status,
+                    'response_headers' => $contentType === null ? [] : ['content-type: ' . $contentType],
+                ]);
+            });
+            $client = new Client(new Credential('secret-token', 'ZONDO'), Environment::LIVE, $http);
+
+            try {
+                $client->card(new CardRequest(10, 'ref', Currency::USD, 'Checkout', 'https://example.com/callback', 'https://example.com/approve', 'https://example.com/cancel', 'https://example.com/decline', 'https://example.com/home'));
+                $this->fail('Expected an invalid response exception');
+            } catch (NetworkException $exception) {
+                $this->assertInstanceOf($exceptionClass, $exception);
+                $this->assertSame($status, $exception->status);
+                $this->assertSame('invalid_response', $exception->type);
+                $this->assertSame(sprintf(
+                    'Flexpay returned an invalid JSON response (Content-Type: %s) (HTTP %d/invalid_response)',
+                    $contentType ?? 'unknown',
+                    $status
+                ), $exception->getMessage());
+                $this->assertInstanceOf(
+                    $status >= 400 ? HttpExceptionInterface::class : DecodingExceptionInterface::class,
+                    $exception->getPrevious()
+                );
+                $this->assertStringNotContainsString('secret-token', $exception->getMessage());
+            }
+
+            $this->assertSame(1, $requests, 'Invalid payment responses must not trigger another payment request');
         }
     }
 
