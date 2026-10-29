@@ -1,7 +1,7 @@
 # Upgrading to version 4.0.0
 
-Version 4.0.0 is currently unreleased. This guide covers upgrading from version 3. PHP 8.4 or later
-remains required. See the [README](README.md) for current API usage and
+This guide covers upgrading from version 3 to version 4.0.0 (2026-10-29). PHP 8.4 or later remains
+required. See the [README](README.md) for current API usage and
 [design notes](docs/design.md) for object responsibilities.
 
 The corporate API changes collection endpoints and request fields. The SDK also makes endpoint

@@ -8,18 +8,16 @@
 A PHP client for FlexPay corporate mobile and card collections, transaction checks, and legacy payouts.
 Contact FlexPay for merchant credentials and their API documentation.
 
-This branch prepares version 4.0.0. It is unreleased. The examples below describe the upcoming API;
-read the [version 4 upgrade guide](UPGRADE_4.0.0.md) before upgrading.
+These examples use the version 4 API. Read the [version 4 upgrade guide](UPGRADE_4.0.0.md)
+when upgrading an existing integration.
 
 ## Requirements and installation
 
-PHP 8.4 or later and Composer 2 are required. Until version 4 is published, this command installs 3.x:
+PHP 8.4 or later and Composer 2 are required. Install version 4 with:
 
 ```bash
-composer require ngandu-dev/flexpay
+composer require "ngandu-dev/flexpay:^4.0"
 ```
-
-To try the unreleased version 4 examples, use this checkout and run `composer install`.
 
 ## Configuration
 

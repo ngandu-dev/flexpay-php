@@ -2,11 +2,11 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 4.0.0 - 2026-10-29
 
 ### Changed
 
-- Prepare version 4.0.0 for the corporate pay-in API. Mobile and card collections share `paymentService`, use bearer-header authentication, and send the documented snake_case URL fields. Production checks use `apicheck.flexpaie.com`; payout retains the existing endpoint and wire format.
+- Use the corporate pay-in API. Mobile and card collections share `paymentService`, use bearer-header authentication, and send the documented snake_case URL fields. Production checks use `apicheck.flexpaie.com`; payout retains the existing endpoint and wire format.
 - Require `Client(Credential, BaseUrl, ?HttpClientInterface)` with an immutable `BaseUrl` containing exactly `payment`, `check`, and `payout`. Supply every prefix or choose `BaseUrl::production()` explicitly. Remove `Environment` and loose URL constructor options.
 - Order `Credential` arguments as merchant, token and reject blank-only values. Remove public client credential and environment properties.
 - Replace request inheritance and credential mutation with standalone readonly request values. Remove `pay()`, `Request`, `Data\Type`, `Data\Method`, `setCredential()`, and `getPayload()`; use explicit operations and credential-free `toPayload()`.
@@ -36,7 +36,7 @@ All notable changes to this project are documented in this file. The project fol
 
 ### Migration
 
-- Follow [the version 4 upgrade guide](UPGRADE_4.0.0.md). An existing declined card lookup has been verified with both SDKs. Successful-payment status zero and the pending status mapping still need confirmation from FlexPay; no successful live collection or callback delivery has been verified for this unreleased change.
+- Follow [the version 4 upgrade guide](UPGRADE_4.0.0.md). An existing declined card lookup has been verified with both SDKs. Successful-payment status zero and the pending status mapping still need confirmation from FlexPay; no successful live collection or callback delivery has been verified for this release.
 
 ## 3.0.5 - 2026-10-28
 
