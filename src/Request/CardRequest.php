@@ -5,58 +5,49 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay\Request;
 
 use Ngandu\Flexpay\Data\Currency;
-use Override;
 use Webmozart\Assert\Assert;
 
 /**
- * Class CardRequest.
+ * Validates and encodes immutable card collection inputs.
+ *
+ * Client selects the operation. HttpTransport adds the merchant and bearer authorization without
+ * modifying this request, so the same value can be used with separate clients safely.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
-final class CardRequest extends Request
+final readonly class CardRequest
 {
     public function __construct(
-        float $amount,
-        string $reference,
-        Currency $currency,
-        string $description,
-        string $callbackUrl,
-        string $approveUrl,
-        string $cancelUrl,
-        string $declineUrl,
-        public string $homeUrl,
+        public float $amount,
+        public string $reference,
+        public Currency $currency,
+        public string $callbackUrl,
+        public string $approveUrl,
+        public string $cancelUrl,
+        public string $declineUrl,
     ) {
-        Assert::notEmpty($description, 'The description must be provided');
-        Assert::notEmpty($approveUrl, 'The approve url must be provided');
-        Assert::notEmpty($cancelUrl, 'The cancel url must be provided');
-        Assert::notEmpty($declineUrl, 'The decline url must be provided');
-        Assert::notEmpty($homeUrl, 'The home url must be provided');
-        Assert::lengthBetween($reference, 1, 25, 'The reference must be between 1 and 25 characters');
-
-        parent::__construct($amount, $reference, $currency, $callbackUrl, $approveUrl, $description, $cancelUrl, $declineUrl);
+        Assert::true(is_finite($amount) && $amount > 0, 'The amount must be finite and greater than zero');
+        Assert::notEq(trim($reference), '', 'The transaction reference must not be blank');
+        Assert::notEq(trim($callbackUrl), '', 'The callback URL must not be blank');
+        Assert::notEq(trim($approveUrl), '', 'The approve URL must not be blank');
+        Assert::notEq(trim($cancelUrl), '', 'The cancel URL must not be blank');
+        Assert::notEq(trim($declineUrl), '', 'The decline URL must not be blank');
     }
 
     /**
-     * Yeah, I know this is weird
-     * But I'm not responsible for the API design.
-     * so don't blame :D
-     * @return array<string, float|string|null>
+     * @return array<string, float|string|int>
      */
-    #[Override]
-    public function getPayload(): array
+    public function toPayload(): array
     {
         return [
+            'type' => '2',
             'amount' => $this->amount,
-            'merchant' => $this->merchant,
-            'authorization' => sprintf('Bearer %s', $this->authorization),
             'reference' => $this->reference,
             'currency' => $this->currency->value,
             'callback_url' => $this->callbackUrl,
-            'description' => $this->description,
             'approve_url' => $this->approveUrl,
             'cancel_url' => $this->cancelUrl,
             'decline_url' => $this->declineUrl,
-            'home_url' => $this->homeUrl,
         ];
     }
 }

@@ -5,42 +5,43 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay\Request;
 
 use Ngandu\Flexpay\Data\Currency;
-use Ngandu\Flexpay\Data\Type;
 use Webmozart\Assert\Assert;
 
 /**
- * Class PayoutRequest.
+ * Validates and encodes immutable mobile-money payout inputs.
  *
- * @author Rooney kalumba
+ * Client selects the operation. HttpTransport adds the merchant and bearer authorization without
+ * modifying this request, so the same value can be used with separate clients safely.
+ *
+ * @author bernard-ng <bernard@ngandu.dev>
  */
-final class PayoutRequest extends Request
+final readonly class PayoutRequest
 {
     public function __construct(
-        float $amount,
-        string $reference,
-        Currency $currency,
-        string $callbackUrl,
+        public float $amount,
+        public string $reference,
+        public Currency $currency,
+        public string $callbackUrl,
         public string $phone,
-        public Type $type = Type::MOBILE,
     ) {
-        Assert::length($this->phone, 12, 'The phone number should be 12 characters long, eg: 243123456789');
-
-        parent::__construct($amount, $reference, $currency, $callbackUrl);
+        Assert::true(is_finite($amount) && $amount > 0, 'The amount must be finite and greater than zero');
+        Assert::notEq(trim($reference), '', 'The transaction reference must not be blank');
+        Assert::notEq(trim($callbackUrl), '', 'The callback URL must not be blank');
+        Assert::regex($phone, '/^[0-9]{12}$/D', 'The phone must contain 12 digits, for example 243810000001');
     }
 
     /**
-     * @return array<string, float|string|null|int>
+     * @return array<string, float|string|int>
      */
-    public function getPayload(): array
+    public function toPayload(): array
     {
         return [
-            'merchant' => $this->merchant,
-            'type' => $this->type->value,
-            'reference' => $this->reference,
-            'phone' => $this->phone,
+            'type' => 1,
             'amount' => $this->amount,
+            'reference' => $this->reference,
             'currency' => $this->currency->value,
             'callbackUrl' => $this->callbackUrl,
+            'phone' => $this->phone,
         ];
     }
 }

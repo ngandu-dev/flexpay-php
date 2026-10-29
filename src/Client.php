@@ -5,282 +5,62 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay;
 
 use InvalidArgumentException;
-use Ngandu\Flexpay\Exception\NetworkException;
+use Ngandu\Flexpay\Http\HttpTransport;
 use Ngandu\Flexpay\Request\CardRequest;
 use Ngandu\Flexpay\Request\MobileRequest;
 use Ngandu\Flexpay\Request\PayoutRequest;
-use Ngandu\Flexpay\Request\Request;
 use Ngandu\Flexpay\Response\CardResponse;
 use Ngandu\Flexpay\Response\CheckResponse;
-use Ngandu\Flexpay\Response\FlexpayResponse;
-use Ngandu\Flexpay\Response\PaymentResponse;
+use Ngandu\Flexpay\Response\MobileResponse;
 use Ngandu\Flexpay\Response\PayoutResponse;
-use RuntimeException;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
-use Symfony\Component\HttpClient\RetryableHttpClient;
-use Symfony\Component\PropertyInfo\Extractor\ConstructorExtractor;
-use Symfony\Component\Serializer\Normalizer\BackedEnumNormalizer;
-use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
-use Symfony\Component\Serializer\Serializer;
-use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\ExceptionInterface as HttpClientExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
+use Ngandu\Flexpay\Response\ResponseDecoder;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
- * Class Client.
+ * Offers explicit collection, payout, and transaction-check operations.
+ *
+ * BaseUrl supplies all network destinations. Immutable requests encode their operation inputs;
+ * HttpTransport authenticates and exchanges them, while ResponseDecoder builds the typed results.
+ * Callback parsing belongs to CallbackResponse and does not require a client or credentials.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
 final readonly class Client
 {
-    private HttpClientInterface $http;
+    private HttpTransport $transport;
 
-    private Serializer $serializer;
-
-    private string $mobilePaymentUrl;
-
-    private string $payoutUrl;
-
-    private string $checkStatusUrl;
-
-    private string $cardPaymentUrl;
+    private ResponseDecoder $responses;
 
     public function __construct(
-        public Credential $credential,
-        public Environment $environment = Environment::SANDBOX,
-        ?HttpClientInterface $http = null,
-        ?string $apiBaseUrl = null,
-        ?string $cardBaseUrl = null,
+        Credential $credential,
+        private BaseUrl $baseUrl,
+        ?HttpClientInterface $http = null
     ) {
-        $apiBaseUrl = $apiBaseUrl === null ? null : $this->normalizeBaseUrl($apiBaseUrl);
-        $cardBaseUrl = $cardBaseUrl === null ? null : $this->normalizeBaseUrl($cardBaseUrl);
-        $this->mobilePaymentUrl = $apiBaseUrl === null
-            ? $environment->getMobilePaymentUrl() : $apiBaseUrl . '/paymentService';
-        $this->payoutUrl = $apiBaseUrl === null
-            ? $environment->getPayoutUrl() : $apiBaseUrl . '/merchantPayOutService';
-        $this->checkStatusUrl = $apiBaseUrl === null
-            ? $environment->getCheckStatusUrl('') : $apiBaseUrl . '/check/';
-        $this->cardPaymentUrl = $cardBaseUrl === null
-            ? $environment->getCardPaymentUrl() : $cardBaseUrl . '/pay';
-
-        $this->serializer = new Serializer(
-            normalizers: [
-                new BackedEnumNormalizer(),
-                new ObjectNormalizer(propertyTypeExtractor: new ConstructorExtractor()),
-            ]
-        );
-
-        $this->http = new RetryableHttpClient(
-            client: ($http ?? HttpClient::create())->withOptions([
-                'auth_bearer' => $this->credential->token,
-                'headers' => [
-                    'Accept' => 'application/json',
-                ],
-            ]),
-            strategy: new GenericRetryStrategy(delayMs: 500),
-            maxRetries: 3
-        );
+        $this->transport = new HttpTransport($credential, $http);
+        $this->responses = new ResponseDecoder();
     }
 
-    /**
-     * Cette interface permet d’envoyer une requête de paiement à FlexPay
-     *
-     * @since flexpay v1
-     * @throws NetworkException
-     */
-    public function mobile(MobileRequest $request): PaymentResponse
+    public function mobile(MobileRequest $request): MobileResponse
     {
-        $request->setCredential($this->credential);
-
-        return $this->send(
-            method: 'POST',
-            url: $this->mobilePaymentUrl,
-            type: PaymentResponse::class,
-            options: [
-                'json' => $request->getPayload(),
-            ]
-        );
+        return $this->transport->post($this->baseUrl->payment . '/paymentService', $request->toPayload(), $this->responses->mobile(...));
     }
 
-    /**
-     * Cette interface permet d’envoyer une requête de paiement à FlexPay
-     * Ce paiement va se faire en deux étapes :
-     * - Générer l’url de paiement
-     * - Redirection vers la page de paiements
-     *
-     * @since flexpay v1.1
-     * @throws NetworkException
-     */
     public function card(CardRequest $request): CardResponse
     {
-        $request->setCredential($this->credential);
-
-        return $this->send(
-            method: 'POST',
-            url: $this->cardPaymentUrl,
-            type: CardResponse::class,
-            options: [
-                'json' => $request->getPayload(),
-            ]
-        );
+        return $this->transport->post($this->baseUrl->payment . '/paymentService', $request->toPayload(), $this->responses->card(...));
     }
 
-    /**
-     * @throws NetworkException
-     */
-    public function pay(Request $request): PaymentResponse|CardResponse
-    {
-        return match (true) {
-            $request instanceof MobileRequest => $this->mobile($request),
-            $request instanceof CardRequest => $this->card($request),
-            default => throw new RuntimeException('Unsupported request')
-        };
-    }
-
-    /**
-     * Cette interface permet de vérifier l’état d’une requête de paiement envoyée à FlexPay.
-     *
-     * @param string $orderNumber Le code de la transaction généré par FlexPay lors de la requête de paiement
-     *
-     * @since flexpay v1
-     * @throws NetworkException quand une erreur
-     */
-    public function check(string $orderNumber): CheckResponse
-    {
-        return $this->send(
-            method: 'GET',
-            url: $this->checkStatusUrl . rawurlencode($orderNumber),
-            type: CheckResponse::class
-        );
-    }
-
-    /**
-     * Cette interface permet à un marchand d’envoyer à partir de son compte de l’argent électronique vers un
-     * numéro de téléphone qui a un compte mobile money.
-     *
-     * @since flexpay v1.1
-     * @throws NetworkException
-     */
     public function payout(PayoutRequest $request): PayoutResponse
     {
-        $request->setCredential($this->credential);
-
-        return $this->send(
-            method: 'POST',
-            url: $this->payoutUrl,
-            type: PayoutResponse::class,
-            options: [
-                'json' => $request->getPayload(),
-            ]
-        );
+        return $this->transport->post($this->baseUrl->payout . '/merchantPayOutService', $request->toPayload(), $this->responses->payout(...));
     }
 
-    /**
-     * Cette interface permet de vérifier l’état d’une requête de paiement envoyée à FlexPay
-     */
-    public function handleCallback(array $data): PaymentResponse
+    public function check(string $orderNumber): CheckResponse
     {
-        /** @var PaymentResponse $payment */
-        $payment = $this->getMappedData(PaymentResponse::class, $data);
-
-        return $payment;
-    }
-
-    /**
-     * @template T of FlexpayResponse
-     * @param class-string<T> $type
-     * @param array<string, mixed> $options
-     * @return T
-     * @throws NetworkException
-     */
-    private function send(string $method, string $url, string $type, array $options = []): FlexpayResponse
-    {
-        try {
-            return $this->getMappedData(
-                type: $type,
-                data: $this->decodeResponse($this->http->request($method, $url, $options))
-            );
-        } catch (HttpExceptionInterface $exception) {
-            throw $this->createExceptionFromResponse($exception);
-        } catch (HttpClientExceptionInterface $exception) {
-            throw new NetworkException($exception->getMessage(), previous: $exception);
-        }
-    }
-
-    private function decodeResponse(ResponseInterface $response): array
-    {
-        try {
-            return $response->toArray();
-        } catch (DecodingExceptionInterface $decodingException) {
-            throw $this->createInvalidResponseException($response, $decodingException);
-        }
-    }
-
-    private function createInvalidResponseException(ResponseInterface $response, HttpClientExceptionInterface $previous): NetworkException
-    {
-        $contentType = $response->getHeaders(throw: false)['content-type'][0] ?? 'unknown';
-
-        return NetworkException::create(
-            message: sprintf('Flexpay returned an invalid JSON response (Content-Type: %s)', $contentType),
-            type: 'invalid_response',
-            status: $response->getStatusCode(),
-            previous: $previous
-        );
-    }
-
-    /**
-     * @template T of FlexpayResponse
-     * @param class-string<T> $type
-     * @return T
-     */
-    private function getMappedData(string $type, array $data): FlexpayResponse
-    {
-        /** @var T $mapped */
-        $mapped = $this->serializer->denormalize($data, $type);
-
-        return $mapped;
-    }
-
-    private function normalizeBaseUrl(string $value): string
-    {
-        $baseUrl = rtrim(trim($value), '/');
-        $parts = parse_url($baseUrl);
-        if (
-            filter_var($baseUrl, FILTER_VALIDATE_URL) === false
-            || $parts === false
-            || ! in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
-            || isset($parts['user'])
-            || isset($parts['pass'])
-            || array_key_exists('query', $parts)
-            || array_key_exists('fragment', $parts)
-            || str_contains($baseUrl, '\\')
-        ) {
-            throw new InvalidArgumentException('Base URLs must be absolute HTTP(S) URLs without credentials, query, or fragment');
+        if (trim($orderNumber) === '' || in_array($orderNumber, ['.', '..'], true)) {
+            throw new InvalidArgumentException('The order number must be nonblank and must not be a dot path segment');
         }
 
-        return $baseUrl;
-    }
-
-    private function createExceptionFromResponse(HttpExceptionInterface $exception): NetworkException
-    {
-        $response = $exception->getResponse();
-
-        try {
-            $body = $response->toArray(throw: false);
-        } catch (DecodingExceptionInterface) {
-            return $this->createInvalidResponseException($response, $exception);
-        } catch (HttpClientExceptionInterface) {
-            $body = [];
-        }
-
-        return NetworkException::create(
-            message: is_string($body['message'] ?? null) ? $body['message'] : '',
-            type: is_string($body['error'] ?? null) ? $body['error'] : null,
-            status: $response->getStatusCode(),
-            previous: $exception
-        );
+        return $this->transport->get($this->baseUrl->check . '/check/' . rawurlencode($orderNumber), $this->responses->check(...));
     }
 }

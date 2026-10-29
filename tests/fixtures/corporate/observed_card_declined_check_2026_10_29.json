@@ -1,0 +1,13 @@
+{
+  "code": "0",
+  "message": "Transaction with code OBSERVED-CARD-ORDER was declined by the operator",
+  "transaction": {
+    "reference": "OBSERVED-CARD-ORDER",
+    "amount": "1.0",
+    "amountCustomer": "1.02",
+    "currency": "USD",
+    "createdAt": "2026-01-02 03:04:05",
+    "status": "4",
+    "channel": "visa"
+  }
+}

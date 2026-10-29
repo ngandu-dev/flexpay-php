@@ -4,27 +4,27 @@ declare(strict_types=1);
 
 namespace Ngandu\Flexpay;
 
+use InvalidArgumentException;
 use SensitiveParameter;
-use Webmozart\Assert\Assert;
 
 /**
- * Class Credential.
+ * Keeps the merchant identity and bearer token used by HttpTransport.
+ *
+ * Requests contain no credentials. This immutable pair binds their merchant payload to the
+ * authorization header at the HTTP boundary.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
 final readonly class Credential
 {
-    /**
-     * @param string $token Le token d’autorisation
-     * @param string $merchant Le code Marchand FlexPay, ex: ZANDO
-     */
     public function __construct(
         #[SensitiveParameter]
-        public string $token,
-        #[SensitiveParameter]
         public string $merchant,
+        #[SensitiveParameter]
+        public string $token,
     ) {
-        Assert::notEmpty($this->token, 'The authorization token cannot be empty');
-        Assert::notEmpty($this->merchant, 'Merchant cannot be empty');
+        if (trim($merchant) === '' || trim($token) === '') {
+            throw new InvalidArgumentException('Merchant and authorization token must not be blank');
+        }
     }
 }

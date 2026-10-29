@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay\Data;
 
 /**
- * Class Transaction.
+ * Carries the nested transaction returned by a provider status lookup.
+ *
+ * ResponseDecoder preserves unknown numeric status values; only zero reports successful collection.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
@@ -16,9 +18,9 @@ final readonly class Transaction
      * @param string $reference La référence de la transaction envoyée
      * @param float $amount Le montant de la transaction envoyé
      * @param float $amountCustomer Le montant total que le client va payer
-     * @param string $createdAt La devise de la transaction
+     * @param string $createdAt Date de création de la transaction
      * @param Status $status Ce code donne le statut de la transaction
-     * @param Currency $currency Date de création de la transaction
+     * @param Currency $currency La devise de la transaction
      * @param ?string $channel Canal de transaction utilisée
      */
     public function __construct(
@@ -27,7 +29,7 @@ final readonly class Transaction
         public float $amountCustomer,
         public string $createdAt,
         public Status $status,
-        public Currency $currency = Currency::CDF,
+        public Currency $currency,
         public ?string $orderNumber = null,
         public ?string $channel = null
     ) {
@@ -35,6 +37,6 @@ final readonly class Transaction
 
     public function isSuccessful(): bool
     {
-        return $this->status === Status::SUCCESS;
+        return $this->status->isSuccessful();
     }
 }

@@ -1,148 +1,232 @@
 # Flexpay PHP
 
 [![Latest Stable Version](https://poser.pugx.org/ngandu-dev/flexpay/version)](https://packagist.org/packages/ngandu-dev/flexpay)
-[![Total Downloads](https://poser.pugx.org/ngandu-dev/flexpay/downloads)](https://packagist.org/packages/ngandu-dev/flexpay)
 [![Quality](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml)
 [![Tests](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml)
 [![License](https://poser.pugx.org/ngandu-dev/flexpay/license)](https://packagist.org/packages/ngandu-dev/flexpay)
 
-For privacy reasons, Flexpay original documentation cannot be shared without written permission, for more information about credentials
-and implementation details, please reach them at flexpay.cd
+A PHP client for FlexPay corporate mobile and card collections, transaction checks, and legacy payouts.
+Contact FlexPay for merchant credentials and their API documentation.
 
-## Features
+This branch prepares version 4.0.0. It is unreleased. The examples below describe the upcoming API;
+read the [version 4 upgrade guide](UPGRADE_4.0.0.md) before upgrading.
 
-- Mobile money and card payment requests
-- Payout requests
-- Transaction status and callback handling
-- Optional custom API and card base URLs for local integration testing
+## Requirements and installation
 
-## Requirements
-
-- PHP 8.4 or later
-- Composer 2
-
-## Installation
-You can use the PHP client by installing the Composer package and adding it to your application’s dependencies:
+PHP 8.4 or later and Composer 2 are required. Until version 4 is published, this command installs 3.x:
 
 ```bash
 composer require ngandu-dev/flexpay
 ```
-## Usage 
 
-### Authentication
-* **Step 1**. Contact Flexpay to get a Merchant Account
-You will receive a Merchant Form to complete in order to provide your business details and preferred Cash out Wallet or Banking Details.
-* **Step 2**. Once the paperwork is completed, you will be issued with Live and Sandbox Accounts (Merchant Code and Authorization token)
+To try the unreleased version 4 examples, use this checkout and run `composer install`.
 
-Then use these credentials to authenticate your client
+## Configuration
+
+A client requires credentials and a `BaseUrl` value with exactly three service prefixes: `payment`,
+`check`, and `payout`. Choose the production preset explicitly:
 
 ```php
-use Ngandu\Flexpay\Client as Flexpay;
+require __DIR__ . '/vendor/autoload.php';
+
+use Ngandu\Flexpay\BaseUrl;
+use Ngandu\Flexpay\Client;
 use Ngandu\Flexpay\Credential;
-use Ngandu\Flexpay\Environment;
 
-$flexpay = new Flexpay(
-    new Credential('token', 'merchant_code'),
-    Environment::SANDBOX // use Environment::LIVE for production
+$flexpay = new Client(
+    credential: new Credential(merchant: 'merchant_code', token: 'authorization_token'),
+    baseUrl: BaseUrl::production(),
 );
 ```
 
-### Local simulator or custom endpoints
+`BaseUrl::production()` selects these versioned prefixes:
 
-Set the optional named constructor arguments to versioned endpoint prefixes:
+| Property | Prefix | Operation path |
+| --- | --- | --- |
+| `payment` | `https://corporateapi.flexpay.cd/api/rest/v1` | `/paymentService` for mobile and card |
+| `check` | `https://apicheck.flexpaie.com/api/rest/v1` | `/check/{orderNumber}` |
+| `payout` | `https://backend.flexpay.cd/api/rest/v1` | `/merchantPayOutService` |
+
+The corporate documentation does not supply a sandbox URL or a replacement payout endpoint. Supply
+all three prefixes when using a local simulator or another deployment:
 
 ```php
-$flexpay = new Flexpay(
-    credential: new Credential('test-token', 'TESTMERCHANT'),
-    apiBaseUrl: 'http://localhost:8080/api/rest/v1',
-    cardBaseUrl: 'http://localhost:8080/v1.1',
+$flexpay = new Client(
+    credential: new Credential(merchant: 'TESTMERCHANT', token: 'test-token'),
+    baseUrl: new BaseUrl(
+        payment: 'http://localhost:8080/api/rest/v1',
+        check: 'http://localhost:8080/api/rest/v1',
+        payout: 'http://localhost:8080/api/rest/v1',
+    ),
 );
 ```
 
-`apiBaseUrl` is shared by mobile payments, payouts, and status checks; the client appends
-`/paymentService`, `/merchantPayOutService`, or `/check/{orderNumber}`. `cardBaseUrl` gets `/pay`
-appended. Include the version path in each prefix and omit the final service path.
-Trailing slashes are removed. Each `null` or omitted option keeps the selected sandbox/live default.
-Existing constructor calls, including the optional third HTTP-client argument, remain compatible.
-Overrides must be absolute HTTP(S) URLs without credentials, query strings, or fragments; invalid
-values throw `InvalidArgumentException` during construction. Authentication and callbacks are unchanged.
+Prefixes must be absolute HTTP(S) URLs without credentials, query strings, fragments, backslashes,
+or interior whitespace. Surrounding whitespace and trailing slashes are removed. Invalid prefixes
+throw `InvalidArgumentException` before HTTP. There is no environment flag or default network choice.
+An optional third constructor argument accepts Symfony's `HttpClientInterface` for HTTP integration
+and tests. An injected HTTP client must not add its own retries or redirect behavior. The client sets
+bearer authentication, disables redirects, and bounds each HTTP attempt to 30 seconds. The bearer token never enters payment JSON.
 
-### Create a Payment Request
+## Mobile collection
+
+```php
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Request\MobileRequest;
+
+$mobile = $flexpay->mobile(new MobileRequest(
+    amount: 10,
+    reference: 'invoice-123',
+    currency: Currency::USD,
+    callbackUrl: 'https://merchant.example/callback',
+    phone: '243999999999',
+));
+
+if (!$mobile->isAccepted()) {
+    // Record $mobile->message and $mobile->code->value for reconciliation.
+}
+```
+
+`isAccepted()` reports provider code zero. It does not confirm that the customer paid or guarantee
+that an order number was supplied. Preserve the returned `orderNumber` for status checks.
+
+## Card collection
 
 ```php
 use Ngandu\Flexpay\Data\Currency;
 use Ngandu\Flexpay\Request\CardRequest;
-use Ngandu\Flexpay\Request\MobileRequest;
 
-$mobile = new MobileRequest(
-    amount: 10, // 10 USD
+$card = $flexpay->card(new CardRequest(
+    amount: 10,
+    reference: 'invoice-124',
     currency: Currency::USD,
-    phone: "243999999999",
-    reference: "your_unique_transaction_reference",
-    description: "your_transaction_description",
-    callbackUrl: "your_website_webhook_url",
-);
+    callbackUrl: 'https://merchant.example/callback',
+    approveUrl: 'https://merchant.example/approved',
+    cancelUrl: 'https://merchant.example/cancelled',
+    declineUrl: 'https://merchant.example/declined',
+));
 
-$card = new CardRequest(
-    amount: 10, // 10 USD
+if ($card->isAccepted() && $card->url !== null && $card->url !== '') {
+    // Use $card->url to continue checkout under your application's redirect policy.
+}
+```
+
+Mobile and card requests send the corporate `callback_url` field. Card return URLs use `approve_url`,
+`cancel_url`, and `decline_url`. Requests are immutable and contain no merchant or token. The client
+adds the merchant during HTTP encoding. Amounts must be finite and positive; references and URL fields
+must be nonblank. Mobile and payout phone numbers must contain exactly 12 digits. The request values
+check URL fields for nonblank content; they do not validate reachability or callback delivery.
+
+## Payout
+
+```php
+use Ngandu\Flexpay\Data\Currency;
+use Ngandu\Flexpay\Request\PayoutRequest;
+
+$payout = $flexpay->payout(new PayoutRequest(
+    amount: 10,
+    reference: 'payout-123',
     currency: Currency::USD,
-    reference: "your_unique_transaction_reference",
-    description: "your_transaction_description",
-    callbackUrl: "your_website_webhook_url",
-    homeUrl: "your_website_home_url",
-    approveUrl: "your_website_approval_url",
-    cancelUrl: "your_website_cancellation_url",
-    declineUrl: "your_website_decline_url",
-);
+    callbackUrl: 'https://merchant.example/payout-callback',
+    phone: '243999999999',
+));
+
+$payout->isAccepted();
 ```
 
-> **Note**: we highly recommend your `callbacks` urls to be unique for each transaction. 
+Payout retains the existing endpoint and JSON format, including numeric `type: 1` and `callbackUrl`.
+All POST operations are sent once. Only GET transaction checks retry transient failures, at most
+three retries after the first attempt, for transport failures and HTTP 5xx. Backoff is 500, 1000,
+then 2000 milliseconds. An integer-seconds `Retry-After` can extend that delay up to two seconds.
+Longer delays, HTTP dates, and malformed values stop automatic retries. HTTP 4xx and malformed HTTP 2xx responses
+are not retried. Reconcile an ambiguous POST result before resubmitting it.
 
-### Mobile Payment
-Once called, Flexpay will send a payment request to the user's mobile money account, and the user will have to confirm the payment on their phone.
-after that the payment will be processed and the callback url will be called with the transaction details.
+## Transaction checks and callbacks
 
 ```php
-$response = $flexpay->pay($mobile);
+if ($mobile->orderNumber === null || trim($mobile->orderNumber) === '') {
+    throw new RuntimeException('FlexPay did not return an order number');
+}
+
+$check = $flexpay->check($mobile->orderNumber);
+$successful = $check->isSuccessful();
+$lookupCode = $check->code->value;
+$transactionCode = $check->transaction?->status->value;
 ```
 
-### Visa Card Payment
-You can set up card payment via VPOS features, which is typically used for online payments.
-it's a gateway that allows you to accept payments from your customers using their credit cards.
+Use the provider's order number for checks. The client encodes it as one path segment and rejects
+blank values and dot-only path segments. `CheckResponse::isSuccessful()` requires both response code
+zero and nested transaction status zero. A missing transaction returns false. Malformed nested
+transactions, including a missing currency, throw `NetworkException` with type `invalid_response`.
+
+Callback parsing does not require a client or credentials:
 
 ```php
-$response = $flexpay->pay($card);
-// redirect to $response->url to complete the payment
+use Ngandu\Flexpay\Response\CallbackResponse;
+
+$payload = json_decode(file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
+if (!is_array($payload)) {
+    throw new InvalidArgumentException('Expected a callback object');
+}
+
+$callback = CallbackResponse::fromPayload($payload);
+$callback->isSuccessful();
+$callback->providerReference; // provider_reference, when supplied
 ```
 
-#### **handling callback (callbackUrl, approveUrl, cancelUrl, declineUrl)**
-Flexpay will send a POST request to the defined callbackUrl and the response will contain the transaction details.
-you can use the following code to handle the callback by providing incoming data as array.
+The callback parser validates the supplied data; it does not authenticate the sender or authorize
+fulfillment. Invalid callback data throws `InvalidArgumentException`. Reporting fields include
+`reference`, `orderNumber`, `providerReference`, `amount`, `amountCustomer`, `phone`, `currency`,
+`createdAt`, and `channel` when present.
 
-```php
-$state = $flexpay->handleCallback($_POST);
-$state->isSuccessful(); // true or false
-```
+Response codes and transaction statuses are always immutable `Status` values. Read their numeric
+`value`; `isSuccessful()` recognizes zero and `isFailure()` recognizes one. Other codes satisfy
+neither predicate and remain observable without assigning them a pending or terminal meaning.
+Callback success requires code zero. An observed production lookup for a declined card transaction
+matched the nested transaction contract. Successful-payment status zero and the pending-code mapping
+still need confirmation from FlexPay.
 
-### Check Transaction state
-You don't trust webhook ? you can always check the transaction state by providing the order number.
+## Fixtures and provider evidence
 
-```php
-$state = $flexpay->check($payment->orderNumber);
-$state->isSuccessful(); // true or false
-```
+`tests/fixtures/corporate/` supplies deterministic success, failure, pending, and unknown status
+responses. Pending uses local simulator value `2`, which is not an upstream guarantee. Tests cover
+exact JSON, authentication, endpoint isolation, callback reporting, request reuse, malformed payloads,
+redirects, time limits, and retry behavior without contacting a payment service.
+
+The `observed_*_2026_10_29` fixtures preserve no-charge production probe responses. Incomplete mobile
+and card requests returned HTTP 200 JSON with code `"1"` and an empty `orderNumber`. A nonexistent-order
+lookup returned code `"1"` with `transaction: null`.
+
+Further probes used an invalid merchant, a nonnumeric amount, and an invalid phone number. For mobile,
+omitting the callback returned `The callbackUrl parameter is required`; either `callback_url` or
+`callbackUrl` advanced validation to `The amount value must be a positive number greater than 0`.
+For card, an object under either spelling returned HTTP 403 HTML, while an object under an unknown
+field returned the missing-callback error. These comparisons support both aliases being recognized
+during input validation. Requests continue to use the PDF's canonical `callback_url`.
+
+The HTML 403 fixture verifies `ClientException` with type `invalid_response`, status 403, and no raw
+HTML in its diagnostic or cause message. These validation probes do not verify payment acceptance
+or callback delivery.
+
+A later authorized lookup of an existing card order returned HTTP 200, lookup code `"0"`, transaction
+status `"4"`, and a message stating that the operator declined the transaction. Both SDKs parsed the
+response successfully while reporting payment success as false. The nested transaction had numeric
+strings for amounts, currency `USD`, a `YYYY-MM-DD HH:MM:SS` date, channel `visa`, and no `orderNumber`.
+The regression fixture replaces the real reference and date with synthetic values. This one observation
+does not establish a universal meaning for status `4`; successful-payment and pending outcomes remain
+unverified against the corporate check endpoint.
 
 ## Response errors
 
-Malformed, empty, or non-JSON responses throw a `Ngandu\Flexpay\Exception\NetworkException`
-with `type` set to `invalid_response`. The exception includes the HTTP `status`,
-Content-Type in its message, and the original exception as its cause. HTTP errors
-retain their classification, such as `ServerException` for HTTP 500.
+Malformed, empty, non-JSON, and structurally invalid responses throw
+`Ngandu\Flexpay\Exception\NetworkException` with type `invalid_response` and the HTTP status.
+JSON decoding failures include Content-Type. HTTP classification is retained: `AccountException`
+for 401 or 429, `ClientException` for other 4xx, and `ServerException` for 5xx. Unexpected redirects
+report `unexpected_redirect`; transport failures report `transport_error`.
 
-An invalid response means the package could not read the payment result. It does
-not establish whether the payment was accepted. Reconcile the payment state
-before submitting it again. Response bodies are not included in the diagnostic
-message.
+An invalid response does not establish whether a payment was accepted. Reconcile its state before
+submitting it again. Raw bodies and original HTTP-library exceptions are excluded from causes, and
+known credential tokens are redacted from provider error diagnostics.
 
 ## Development
 
@@ -150,22 +234,9 @@ message.
 composer install
 composer format
 composer quality
+composer validate --strict
+composer audit --locked --no-interaction
 ```
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
-
-## Security
-
-Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
-
-## License
-
-Released under the [MIT License](LICENSE).
-
-## Contributors
-
-<a href="https://github.com/ngandu-dev/flexpay-php/graphs/contributors" title="Show all contributors">
-  <img src="https://contrib.rocks/image?repo=ngandu-dev/flexpay-php" alt="Contributors" />
-</a>
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and
+[SECURITY.md](SECURITY.md) for private vulnerability reporting. Released under the [MIT License](LICENSE).

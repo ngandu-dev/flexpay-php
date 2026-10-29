@@ -5,52 +5,43 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay\Request;
 
 use Ngandu\Flexpay\Data\Currency;
-use Ngandu\Flexpay\Data\Type;
-use Override;
 use Webmozart\Assert\Assert;
 
 /**
- * Class MobileRequest.
+ * Validates and encodes immutable mobile-money collection inputs.
+ *
+ * Client selects the operation. HttpTransport adds the merchant and bearer authorization without
+ * modifying this request, so the same value can be used with separate clients safely.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
-final class MobileRequest extends Request
+final readonly class MobileRequest
 {
     public function __construct(
-        float $amount,
-        string $reference,
-        Currency $currency,
-        string $callbackUrl,
-        public readonly string $phone,
-        public readonly Type $type = Type::MOBILE,
-        ?string $description = null,
-        ?string $approveUrl = null,
-        ?string $cancelUrl = null,
-        ?string $declineUrl = null
+        public float $amount,
+        public string $reference,
+        public Currency $currency,
+        public string $callbackUrl,
+        public string $phone,
     ) {
-        Assert::length($this->phone, 12, 'The phone number should be 12 characters long, eg: 243123456789');
-
-        parent::__construct($amount, $reference, $currency, $callbackUrl, $approveUrl, $description, $cancelUrl, $declineUrl);
+        Assert::true(is_finite($amount) && $amount > 0, 'The amount must be finite and greater than zero');
+        Assert::notEq(trim($reference), '', 'The transaction reference must not be blank');
+        Assert::notEq(trim($callbackUrl), '', 'The callback URL must not be blank');
+        Assert::regex($phone, '/^[0-9]{12}$/D', 'The phone must contain 12 digits, for example 243810000001');
     }
 
     /**
-     * @return array<string, float|string|int|null>
+     * @return array<string, float|string|int>
      */
-    #[Override]
-    public function getPayload(): array
+    public function toPayload(): array
     {
         return [
-            'phone' => $this->phone,
-            'type' => $this->type->value,
+            'type' => '1',
             'amount' => $this->amount,
-            'merchant' => $this->merchant,
             'reference' => $this->reference,
             'currency' => $this->currency->value,
-            'callbackUrl' => $this->callbackUrl,
-            'description' => $this->description,
-            'approveUrl' => $this->approveUrl,
-            'cancelUrl' => $this->cancelUrl,
-            'declineUrl' => $this->declineUrl,
+            'callback_url' => $this->callbackUrl,
+            'phone' => $this->phone,
         ];
     }
 }

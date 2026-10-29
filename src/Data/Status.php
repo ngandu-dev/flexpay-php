@@ -5,21 +5,27 @@ declare(strict_types=1);
 namespace Ngandu\Flexpay\Data;
 
 /**
- * Class Status.
+ * Preserves one numeric provider status without guessing the meaning of unknown values.
  *
- * Ce code donne le statut de la requête envoyée
+ * Responses interpret code zero as request acceptance or completed collection according to their role.
+ * Status values other than zero and one remain available to callers without a terminal-state assumption.
  *
  * @author bernard-ng <bernard@ngandu.dev>
  */
-enum Status: int
+final readonly class Status
 {
-    /**
-     * 0 : pour la requête bien envoyée
-     */
-    case SUCCESS = 0;
+    public function __construct(
+        public int $value
+    ) {
+    }
 
-    /**
-     * 1 : en cas de problème
-     */
-    case FAILURE = 1;
+    public function isSuccessful(): bool
+    {
+        return $this->value === 0;
+    }
+
+    public function isFailure(): bool
+    {
+        return $this->value === 1;
+    }
 }

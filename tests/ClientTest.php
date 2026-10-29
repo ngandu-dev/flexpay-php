@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Ngandu\Flexpay\Tests;
 
-use InvalidArgumentException;
+use Ngandu\Flexpay\BaseUrl;
 use Ngandu\Flexpay\Client;
 use Ngandu\Flexpay\Credential;
 use Ngandu\Flexpay\Data\Currency;
 use Ngandu\Flexpay\Data\Transaction;
-use Ngandu\Flexpay\Data\Type;
-use Ngandu\Flexpay\Environment;
 use Ngandu\Flexpay\Exception\AccountException;
 use Ngandu\Flexpay\Exception\ClientException;
 use Ngandu\Flexpay\Exception\NetworkException;
@@ -18,16 +16,16 @@ use Ngandu\Flexpay\Exception\ServerException;
 use Ngandu\Flexpay\Request\CardRequest;
 use Ngandu\Flexpay\Request\MobileRequest;
 use Ngandu\Flexpay\Request\PayoutRequest;
+use Ngandu\Flexpay\Response\CallbackResponse;
 use Ngandu\Flexpay\Response\CardResponse;
 use Ngandu\Flexpay\Response\CheckResponse;
-use Ngandu\Flexpay\Response\PaymentResponse;
+use Ngandu\Flexpay\Response\MobileResponse;
 use Ngandu\Flexpay\Response\PayoutResponse;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
-use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 
 /**
  * Class ClientTest.
@@ -43,17 +41,15 @@ final class ClientTest extends TestCase
             amount: 1,
             reference: 'ref',
             currency: Currency::USD,
-            description: 'test',
             callbackUrl: 'http://localhost:8000/callback',
             approveUrl: 'http://localhost:8000/approve',
             cancelUrl: 'http://localhost:8000/cancel',
             declineUrl: 'http://localhost:8000/decline',
-            homeUrl: 'http://localhost:8000/home',
         );
         $response = $flexpay->card($request);
 
         $this->assertInstanceOf(CardResponse::class, $response);
-        $this->assertTrue($response->isSuccessful());
+        $this->assertTrue($response->isAccepted());
         $this->assertEquals('O42iABI27568020268434827', $response->orderNumber);
         $this->assertEquals('https://gwvisa.flexpay.cd/checkout/bbba6b699af8a70e9cfa010d6d12dba5_670d206b7defb', $response->url);
     }
@@ -71,13 +67,12 @@ final class ClientTest extends TestCase
             currency: Currency::USD,
             callbackUrl: 'http://localhost:8000/callback',
             phone: '243123456789',
-            type: Type::MOBILE
         );
 
         $response = $flexpay->payout($request);
 
         $this->assertInstanceOf(PayoutResponse::class, $response);
-        $this->assertTrue($response->isSuccessful());
+        $this->assertTrue($response->isAccepted());
         $this->assertEquals('Transaction envoyée avec succès.', $response->message);
         $this->assertEquals('SQeCGunXEGnr243815877848', $response->orderNumber);
     }
@@ -88,7 +83,7 @@ final class ClientTest extends TestCase
         $response = $flexpay->check('some_order_number');
 
         $this->assertInstanceOf(CheckResponse::class, $response);
-        $this->assertTrue($response->isSuccessful());
+        $this->assertFalse($response->isSuccessful());
         $this->assertInstanceOf(Transaction::class, $response->transaction);
         $this->assertFalse($response->transaction->isSuccessful());
         $this->assertEquals('test', $response->transaction->reference);
@@ -116,22 +111,27 @@ final class ClientTest extends TestCase
         );
         $response = $flexpay->mobile($request);
 
-        $this->assertInstanceOf(PaymentResponse::class, $response);
-        $this->assertTrue($response->isSuccessful());
+        $this->assertInstanceOf(MobileResponse::class, $response);
+        $this->assertTrue($response->isAccepted());
         $this->assertEquals('DtX9SmCYojWW243123456789', $response->orderNumber);
     }
 
-    public function testHandleCallback(): void
+    public function testCallbackParsesWithoutCredentials(): void
     {
         /** @var array $data */
         $data = json_decode((string) file_get_contents(__DIR__ . '/fixtures/response_success.json'), true);
-        $flexpay = $this->getFlexpay($this->getResponse('response_success.json'));
 
-        $response = $flexpay->handleCallback($data);
-        $this->assertInstanceOf(PaymentResponse::class, $response);
+        $response = CallbackResponse::fromPayload($data);
+        $this->assertInstanceOf(CallbackResponse::class, $response);
         $this->assertTrue($response->isSuccessful());
         $this->assertEquals('ZDN000003', $response->reference);
         $this->assertEquals('UBGC8s9L3VBm243815877848', $response->orderNumber);
+        $this->assertSame('PROVIDER-001', $response->providerReference);
+        $this->assertSame(100.0, $response->amount);
+        $this->assertSame(102.0, $response->amountCustomer);
+        $this->assertSame('243815877848', $response->phone);
+        $this->assertSame(Currency::CDF, $response->currency);
+        $this->assertSame('mpesa', $response->channel);
     }
 
     public function testHttpErrorsKeepTheirClassificationAndContext(): void
@@ -155,14 +155,14 @@ final class ClientTest extends TestCase
             );
 
             try {
-                $this->getFlexpay($response)->check('order-number');
+                $this->getFlexpay($response)->mobile(new MobileRequest(10, 'ref', Currency::USD, 'https://example.com/callback', '243810000001'));
                 $this->fail(sprintf('Expected %s to be thrown', $exceptionClass));
             } catch (NetworkException $exception) {
                 $this->assertInstanceOf($exceptionClass, $exception);
                 $this->assertSame($status, $exception->status);
                 $this->assertSame('api_error', $exception->type);
                 $this->assertSame(sprintf('Request failed (HTTP %d/api_error)', $status), $exception->getMessage());
-                $this->assertInstanceOf(HttpExceptionInterface::class, $exception->getPrevious());
+                $this->assertNull($exception->getPrevious());
             }
         }
     }
@@ -201,17 +201,17 @@ final class ClientTest extends TestCase
             $http = new MockHttpClient(static function (string $method, string $url) use ($status, $body, $contentType, &$requests): MockResponse {
                 ++$requests;
                 self::assertSame('POST', $method);
-                self::assertSame('https://cardpayment.flexpay.cd/v1.1/pay', $url);
+                self::assertSame('https://corporateapi.flexpay.cd/api/rest/v1/paymentService', $url);
 
                 return new MockResponse($body, [
                     'http_code' => $status,
                     'response_headers' => $contentType === null ? [] : ['content-type: ' . $contentType],
                 ]);
             });
-            $client = new Client(new Credential('secret-token', 'ZONDO'), Environment::LIVE, $http);
+            $client = new Client(new Credential(merchant: 'ZONDO', token: 'secret-token'), BaseUrl::production(), $http);
 
             try {
-                $client->card(new CardRequest(10, 'ref', Currency::USD, 'Checkout', 'https://example.com/callback', 'https://example.com/approve', 'https://example.com/cancel', 'https://example.com/decline', 'https://example.com/home'));
+                $client->card(new CardRequest(10, 'ref', Currency::USD, 'https://example.com/callback', 'https://example.com/approve', 'https://example.com/cancel', 'https://example.com/decline'));
                 $this->fail('Expected an invalid response exception');
             } catch (NetworkException $exception) {
                 $this->assertInstanceOf($exceptionClass, $exception);
@@ -223,7 +223,7 @@ final class ClientTest extends TestCase
                     $status
                 ), $exception->getMessage());
                 $this->assertInstanceOf(
-                    $status >= 400 ? HttpExceptionInterface::class : DecodingExceptionInterface::class,
+                    RuntimeException::class,
                     $exception->getPrevious()
                 );
                 $this->assertStringNotContainsString('secret-token', $exception->getMessage());
@@ -233,7 +233,7 @@ final class ClientTest extends TestCase
         }
     }
 
-    public function testTransportErrorsAreRecastWithoutLosingTheCause(): void
+    public function testTransportErrorsRetainSafeCauseClassification(): void
     {
         $transportError = new TransportException('Connection failed');
         $flexpay = $this->getFlexpay(static fn () => throw $transportError);
@@ -248,70 +248,18 @@ final class ClientTest extends TestCase
             ));
             $this->fail('Expected a NetworkException to be thrown');
         } catch (NetworkException $networkException) {
-            $this->assertSame('Connection failed', $networkException->getMessage());
-            $this->assertSame($transportError, $networkException->getPrevious());
-        }
-    }
-
-    public function testCustomBaseUrlsAndIndependentEnvironmentDefaults(): void
-    {
-        $cases = [
-            [Environment::SANDBOX, null, null],
-            [Environment::LIVE, null, null],
-            [Environment::LIVE, ' http://localhost:8080/proxy/api/rest/v1/// ', 'http://[::1]:8080/proxy/v1.1/'],
-            [Environment::SANDBOX, 'http://localhost:8080/api/rest/v1', null],
-            [Environment::LIVE, null, 'http://localhost:8080/v1.1'],
-        ];
-        foreach ($cases as [$environment, $apiBaseUrl, $cardBaseUrl]) {
-            $api = $apiBaseUrl === null ? null : rtrim(trim($apiBaseUrl), '/');
-            $card = $cardBaseUrl === null ? null : rtrim(trim($cardBaseUrl), '/');
-            $order = 'order/with spaces?x=#';
-            $expected = [
-                ['POST', $api === null ? $environment->getMobilePaymentUrl() : $api . '/paymentService', 'mobile_success.json'],
-                ['POST', $api === null ? $environment->getPayoutUrl() : $api . '/merchantPayOutService', 'payout_success.json'],
-                ['GET', $api === null ? $environment->getCheckStatusUrl($order) : $api . '/check/order%2Fwith%20spaces%3Fx%3D%23', 'check_success.json'],
-                ['POST', $card === null ? $environment->getCardPaymentUrl() : $card . '/pay', 'card_success.json'],
-            ];
-            $index = 0;
-            $http = new MockHttpClient(function (string $method, string $url) use ($expected, &$index): MockResponse {
-                [$expectedMethod, $expectedUrl, $fixture] = $expected[$index++];
-                $this->assertSame($expectedMethod, $method);
-                $this->assertSame($expectedUrl, $url);
-
-                return $this->getResponse($fixture);
-            });
-            $client = new Client(new Credential('token', 'ZONDO'), $environment, $http, $apiBaseUrl, $cardBaseUrl);
-            $client->mobile(new MobileRequest(10, 'local', Currency::USD, 'http://localhost/callback', '243810000001'));
-            $client->payout(new PayoutRequest(10, 'local', Currency::USD, 'http://localhost/callback', '243810000001'));
-            $client->check($order);
-            $client->card(new CardRequest(10, 'local', Currency::USD, 'Local checkout', 'http://localhost/callback', 'http://localhost/approve', 'http://localhost/cancel', 'http://localhost/decline', 'http://localhost/home'));
-            $this->assertSame(4, $index);
-        }
-    }
-
-    public function testInvalidBaseUrlsAreRejectedBeforeRequests(): void
-    {
-        $values = ['', ' ', '/relative', 'localhost:8080', 'http:localhost', 'ftp://localhost/api',
-            'http://localhost:invalid', 'http://user:password@localhost/api', 'http://localhost/api?token=1',
-            'http://localhost/api#fragment', 'http://localhost/api?', 'http://localhost/api#', 'http://localhost/\\path'];
-        foreach ($values as $value) {
-            foreach (['apiBaseUrl', 'cardBaseUrl'] as $option) {
-                try {
-                    new Client(new Credential('token', 'ZONDO'), ...[
-                        $option => $value,
-                    ]);
-                    $this->fail(sprintf('Expected %s=%s to be rejected', $option, $value));
-                } catch (InvalidArgumentException $invalidArgumentException) {
-                    $this->assertStringContainsString('Base URLs', $invalidArgumentException->getMessage());
-                }
-            }
+            $this->assertSame('Unable to contact Flexpay', $networkException->getMessage());
+            $this->assertSame('transport_error', $networkException->type);
+            $this->assertInstanceOf(RuntimeException::class, $networkException->getPrevious());
+            $this->assertSame(TransportException::class, $networkException->getPrevious()->getMessage());
         }
     }
 
     private function getFlexpay(callable|MockResponse $mock): Client
     {
         return new Client(
-            credential: new Credential('token', 'ZONDO'),
+            credential: new Credential(merchant: 'ZONDO', token: 'token'),
+            baseUrl: BaseUrl::production(),
             http: new MockHttpClient($mock)
         );
     }

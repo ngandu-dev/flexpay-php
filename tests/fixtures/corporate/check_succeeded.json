@@ -1,0 +1,14 @@
+{
+  "code": "0",
+  "message": "Local status fixture",
+  "transaction": {
+    "orderNumber": "seed-succeeded",
+    "reference": "seed-succeeded",
+    "amount": "10.0",
+    "amountCustomer": "10.2",
+    "currency": "USD",
+    "createdAt": "29-10-2026 12:00:00",
+    "status": "0",
+    "channel": "mpesa"
+  }
+}
