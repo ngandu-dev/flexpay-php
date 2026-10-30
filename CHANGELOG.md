@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Documentation
+
+- Align PHP and TypeScript README structure, terminology and usage examples. Keep migration instructions in versioned upgrade guides. Remove the design, provider evidence and response errors sections from the README.
+
 ## 4.0.0 - 2026-10-29
 
 ### Changed

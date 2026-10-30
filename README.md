@@ -1,11 +1,11 @@
-# Flexpay PHP
+# FlexPay PHP
 
 [![Latest Stable Version](https://poser.pugx.org/ngandu-dev/flexpay/version)](https://packagist.org/packages/ngandu-dev/flexpay)
 [![Quality](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/quality.yml)
 [![Tests](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml/badge.svg)](https://github.com/ngandu-dev/flexpay-php/actions/workflows/test.yml)
 [![License](https://poser.pugx.org/ngandu-dev/flexpay/license)](https://packagist.org/packages/ngandu-dev/flexpay)
 
-A PHP client for FlexPay corporate mobile and card collections, transaction checks, and legacy payouts.
+A PHP client for FlexPay corporate mobile and card collections, transaction checks, callback parsing, and legacy payouts.
 Contact FlexPay for merchant credentials and their API documentation.
 
 These examples use the version 4 API. Read the [version 4 upgrade guide](UPGRADE_4.0.0.md)
@@ -49,7 +49,7 @@ The corporate documentation does not supply a sandbox URL or a replacement payou
 all three prefixes when using a local simulator or another deployment:
 
 ```php
-$flexpay = new Client(
+$localFlexpay = new Client(
     credential: new Credential(merchant: 'TESTMERCHANT', token: 'test-token'),
     baseUrl: new BaseUrl(
         payment: 'http://localhost:8080/api/rest/v1',
@@ -110,10 +110,10 @@ if ($card->isAccepted() && $card->url !== null && $card->url !== '') {
 ```
 
 Mobile and card requests send the corporate `callback_url` field. Card return URLs use `approve_url`,
-`cancel_url`, and `decline_url`. Requests are immutable and contain no merchant or token. The client
+`cancel_url`, and `decline_url`. Immutable request objects contain no merchant or token. The transport
 adds the merchant during HTTP encoding. Amounts must be finite and positive; references and URL fields
-must be nonblank. Mobile and payout phone numbers must contain exactly 12 digits. The request values
-check URL fields for nonblank content; they do not validate reachability or callback delivery.
+must be nonblank. Mobile and payout phone numbers must contain exactly 12 digits. Request validation
+checks URL fields for nonblank content; it does not validate reachability or callback delivery.
 
 ## Payout
 
@@ -180,51 +180,7 @@ fulfillment. Invalid callback data throws `InvalidArgumentException`. Reporting 
 Response codes and transaction statuses are always immutable `Status` values. Read their numeric
 `value`; `isSuccessful()` recognizes zero and `isFailure()` recognizes one. Other codes satisfy
 neither predicate and remain observable without assigning them a pending or terminal meaning.
-Callback success requires code zero. An observed production lookup for a declined card transaction
-matched the nested transaction contract. Successful-payment status zero and the pending-code mapping
-still need confirmation from FlexPay.
-
-## Fixtures and provider evidence
-
-`tests/fixtures/corporate/` supplies deterministic success, failure, pending, and unknown status
-responses. Pending uses local simulator value `2`, which is not an upstream guarantee. Tests cover
-exact JSON, authentication, endpoint isolation, callback reporting, request reuse, malformed payloads,
-redirects, time limits, and retry behavior without contacting a payment service.
-
-The `observed_*_2026_10_29` fixtures preserve no-charge production probe responses. Incomplete mobile
-and card requests returned HTTP 200 JSON with code `"1"` and an empty `orderNumber`. A nonexistent-order
-lookup returned code `"1"` with `transaction: null`.
-
-Further probes used an invalid merchant, a nonnumeric amount, and an invalid phone number. For mobile,
-omitting the callback returned `The callbackUrl parameter is required`; either `callback_url` or
-`callbackUrl` advanced validation to `The amount value must be a positive number greater than 0`.
-For card, an object under either spelling returned HTTP 403 HTML, while an object under an unknown
-field returned the missing-callback error. These comparisons support both aliases being recognized
-during input validation. Requests continue to use the PDF's canonical `callback_url`.
-
-The HTML 403 fixture verifies `ClientException` with type `invalid_response`, status 403, and no raw
-HTML in its diagnostic or cause message. These validation probes do not verify payment acceptance
-or callback delivery.
-
-A later authorized lookup of an existing card order returned HTTP 200, lookup code `"0"`, transaction
-status `"4"`, and a message stating that the operator declined the transaction. Both SDKs parsed the
-response successfully while reporting payment success as false. The nested transaction had numeric
-strings for amounts, currency `USD`, a `YYYY-MM-DD HH:MM:SS` date, channel `visa`, and no `orderNumber`.
-The regression fixture replaces the real reference and date with synthetic values. This one observation
-does not establish a universal meaning for status `4`; successful-payment and pending outcomes remain
-unverified against the corporate check endpoint.
-
-## Response errors
-
-Malformed, empty, non-JSON, and structurally invalid responses throw
-`Ngandu\Flexpay\Exception\NetworkException` with type `invalid_response` and the HTTP status.
-JSON decoding failures include Content-Type. HTTP classification is retained: `AccountException`
-for 401 or 429, `ClientException` for other 4xx, and `ServerException` for 5xx. Unexpected redirects
-report `unexpected_redirect`; transport failures report `transport_error`.
-
-An invalid response does not establish whether a payment was accepted. Reconcile its state before
-submitting it again. Raw bodies and original HTTP-library exceptions are excluded from causes, and
-known credential tokens are redacted from provider error diagnostics.
+Callback success requires code zero.
 
 ## Development
 
@@ -236,5 +192,8 @@ composer validate --strict
 composer audit --locked --no-interaction
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and
-[SECURITY.md](SECURITY.md) for private vulnerability reporting. Released under the [MIT License](LICENSE).
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and
+[SECURITY.md](SECURITY.md) for private vulnerability reporting. Contributions follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). Released under the [MIT License](LICENSE).
