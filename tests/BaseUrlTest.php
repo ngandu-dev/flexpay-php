@@ -19,6 +19,18 @@ final class BaseUrlTest extends TestCase
         ], get_object_vars(BaseUrl::production()));
     }
 
+    public function testSandboxUsesOneValidatedPrefixForAllThreeServices(): void
+    {
+        self::assertSame([
+            'payment' => 'http://localhost:8080/api/rest/v1',
+            'check' => 'http://localhost:8080/api/rest/v1',
+            'payout' => 'http://localhost:8080/api/rest/v1',
+        ], get_object_vars(BaseUrl::sandbox(' http://localhost:8080/api/rest/v1/// ')));
+
+        $this->expectException(InvalidArgumentException::class);
+        BaseUrl::sandbox('/relative');
+    }
+
     public function testNormalizesEveryExplicitPrefix(): void
     {
         $urls = new BaseUrl(' http://localhost:8080/pay/// ', 'http://[::1]:8081/check/', 'https://payout.example/api/rest/v1/');

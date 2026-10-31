@@ -58,21 +58,17 @@ preset selects corporate collection, the separate check API, and the existing pa
 | `check` | `https://apicheck.flexpaie.com/api/rest/v1` | `/check/{orderNumber}` |
 | `payout` | `https://backend.flexpay.cd/api/rest/v1` | `/merchantPayOutService` |
 
-For a simulator or custom deployment, supply all three prefixes:
+For sandbox integrations, use the [FlexPay sandbox](https://github.com/ngandu-dev/flexpay-sandbox) and
+pass its deployment URL to `BaseUrl::sandbox()`:
 
 ```php
 $flexpay = new Client(
     credential: new Credential(merchant: 'TESTMERCHANT', token: 'test-token'),
-    baseUrl: new BaseUrl(
-        payment: 'http://localhost:8080/api/rest/v1',
-        check: 'http://localhost:8080/api/rest/v1',
-        payout: 'http://localhost:8080/api/rest/v1',
-    ),
+    baseUrl: BaseUrl::sandbox('https://your-flexpay-sandbox.example/api/rest/v1'),
 );
 ```
 
-A corporate sandbox address has not been supplied. There is no sandbox mode or automatic network
-fallback. Prefixes must be absolute HTTP(S) URLs without credentials, query strings, fragments,
+There is no automatic network fallback. Prefixes must be absolute HTTP(S) URLs without credentials, query strings, fragments,
 backslashes, or interior whitespace. Surrounding whitespace and trailing slashes are removed.
 
 ## Mobile and card collections
@@ -341,5 +337,4 @@ application relied on it through this SDK's dependency tree.
 An authorized production lookup has confirmed parsing of one declined card transaction. Its lookup
 code was zero and transaction status was four; that single observation does not define a general
 status-four mapping. Successful-payment and pending outcomes remain unverified against the corporate
-check endpoint. See [provider evidence](README.md#fixtures-and-provider-evidence) for the scope of
-verification.
+check endpoint. The README describes the scope of the provider evidence and remaining limits.

@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file. The project follows [Semantic Versioning](https://semver.org/).
 
+## 4.0.1 - 2026-10-31
+
+### Added
+
+- Add `BaseUrl::sandbox($url)` to use one sandbox prefix for payments, checks, and payouts.
+- Document production and sandbox configuration consistently with the TypeScript client.
+
 ## Unreleased
 
 ### Documentation

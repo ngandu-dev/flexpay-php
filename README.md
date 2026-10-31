@@ -45,17 +45,13 @@ $flexpay = new Client(
 | `check` | `https://apicheck.flexpaie.com/api/rest/v1` | `/check/{orderNumber}` |
 | `payout` | `https://backend.flexpay.cd/api/rest/v1` | `/merchantPayOutService` |
 
-The corporate documentation does not supply a sandbox URL or a replacement payout endpoint. Supply
-all three prefixes when using a local simulator or another deployment:
+For sandbox integrations, use the [FlexPay sandbox](https://github.com/ngandu-dev/flexpay-sandbox) and
+pass its deployment URL to `BaseUrl::sandbox()`. It sets `payment`, `check`, and `payout` to that URL:
 
 ```php
-$localFlexpay = new Client(
+$sandboxFlexpay = new Client(
     credential: new Credential(merchant: 'TESTMERCHANT', token: 'test-token'),
-    baseUrl: new BaseUrl(
-        payment: 'http://localhost:8080/api/rest/v1',
-        check: 'http://localhost:8080/api/rest/v1',
-        payout: 'http://localhost:8080/api/rest/v1',
-    ),
+    baseUrl: BaseUrl::sandbox('https://your-flexpay-sandbox.example/api/rest/v1'),
 );
 ```
 

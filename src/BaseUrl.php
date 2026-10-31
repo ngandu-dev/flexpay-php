@@ -38,6 +38,14 @@ final readonly class BaseUrl
         );
     }
 
+    /**
+     * Uses one FlexPay sandbox prefix for payment, check, and payout.
+     */
+    public static function sandbox(string $url): self
+    {
+        return new self(payment: $url, check: $url, payout: $url);
+    }
+
     private function normalize(string $value): string
     {
         $url = rtrim(trim($value), '/');
